@@ -23,6 +23,9 @@
 
 * { box-sizing: border-box; }
 
+/* Emojis de Twitter (Twemoji), del tamaño del texto */
+img.emoji { height: 1.15em; width: 1.15em; margin: 0 .05em 0 .1em; vertical-align: -.2em; display: inline-block; }
+
 body {
     margin: 0;
     background: var(--fondo);

@@ -6,12 +6,13 @@
    (Los personajes y tweets NO van aquí: están en IndexedDB.)
    ===================================================================== */
 
-const CACHE = 'twt2015-v13';
+const CACHE = 'twt2015-v14';
 const ARCHIVOS = [
     './',
     'index.html',
     'css/style.css',
     'js/html-to-image.js',
+    'js/twemoji.min.js',
     'js/almacen.js',
     'js/app.js',
     'manifest.json',

@@ -1,0 +1,12 @@
+Emojis de Twemoji
+=================
+
+Los dibujos de esta carpeta son Twemoji (https://github.com/jdecked/twemoji), sin modificar.
+Copyright (c) 2014–2021 Twitter
+Copyright (c) 2022–present Jason Sofonia & Justine De Caires
+
+Licencia de los dibujos: Creative Commons Attribution 4.0 International (CC-BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+El código que los coloca en la página (js/twemoji.min.js) tiene licencia MIT,
+con el mismo copyright.

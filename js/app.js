@@ -56,6 +56,32 @@ const ICONO = (() => {
 })();
 
 /* ---------------------------------------------------------------------
+   EMOJIS: se ven con los de Twitter (Twemoji) en todos los dispositivos
+   (los dibujos están en la carpeta emojis/; no se cambian mientras se escribe)
+   --------------------------------------------------------------------- */
+
+function emojis(raiz) {
+    if (typeof twemoji === 'undefined' || !raiz) return;
+    twemoji.parse(raiz, {
+        callback: icono => `emojis/${icono}.svg`,
+        className: 'emoji'
+    });
+}
+
+// Cada vez que aparece algo nuevo en la página, se le ponen los emojis (menos donde se está escribiendo)
+const enEdicion = n => !!(n.closest && n.closest('[contenteditable], .editando, textarea, input'));
+new MutationObserver(cambios => {
+    for (const c of cambios) {
+        for (const n of c.addedNodes) {
+            const el = n.nodeType === 1 ? n : n.parentElement;
+            if (!el || enEdicion(el) || (n.nodeType === 1 && n.tagName === 'IMG')) continue;
+            if (n.nodeType === 3 && !/[\u203c-\u3299\ud83c-\udbff]/.test(n.nodeValue)) continue;
+            emojis(el);
+        }
+    }
+}).observe(document.documentElement, { childList: true, subtree: true });
+
+/* ---------------------------------------------------------------------
    DATOS
    --------------------------------------------------------------------- */
 
