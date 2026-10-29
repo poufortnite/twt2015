@@ -41,6 +41,6 @@ Tus datos no salen de tu dispositivo. En **Perfiles → Tus datos** puedes guard
 Cada vez que subes cambios a la rama `main`, GitHub Pages actualiza la web en uno o dos minutos
 y a quien la tenga instalada le llega sola la próxima vez que la abra con internet.
 
-**Cada vez que subas cambios, sube el número de `CACHE` en `sw.js`** (`twt2015-v10` → `twt2015-v11`).
+**Cada vez que subas cambios, sube el número de `CACHE` en `sw.js`** (`twt2015-v11` → `twt2015-v12`).
 Así la app instalada se da cuenta de que hay versión nueva y se recarga sola al abrirla o al volver a ella.
 Si añades archivos nuevos a la app, ponlos también en `ARCHIVOS` en `sw.js`.

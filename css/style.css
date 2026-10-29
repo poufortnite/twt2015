@@ -605,3 +605,4 @@ html.capturando .dm-grupo-nom.ed:empty::before { content: attr(data-ph); }
 .op-desc span:not(.op-n) { display: block; font-size: 13px; color: var(--gris-osc); margin-top: 3px; }
 .op-n { background: var(--azul); color: #fff; border-radius: 10px; padding: 0 8px; font-size: 13px; line-height: 20px; }
 .op-marcar { margin-top: 14px; width: 100%; color: var(--gris-osc); }
+.mini-btn:disabled { opacity: .45; cursor: default; }

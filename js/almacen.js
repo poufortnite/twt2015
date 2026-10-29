@@ -258,6 +258,17 @@ const Almacen = (() => {
             return { ok: true };
         }
 
+        if (accion === 'borrar-todos') {
+            // Todos los tweets con sus respuestas y sus fotos (los personajes y los chats se quedan)
+            await transaccion(['tweets', 'imagenes'], 'readwrite', async tx => {
+                const st = tx.objectStore('tweets');
+                const lista = await promesa(st.getAll());
+                lista.forEach(t => borrarImagenesTweet(tx, t.datos));
+                st.clear();
+            });
+            return { ok: true };
+        }
+
         if (accion === 'ordenar') {
             await transaccion(['tweets'], 'readwrite', async tx => {
                 const st = tx.objectStore('tweets');

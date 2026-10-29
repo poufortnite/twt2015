@@ -516,6 +516,10 @@ function vistaPerfiles() {
             <div class="fila-btns fila-izq">
                 <button class="mini-btn" data-accion="descargar-todos">🖼 Descargar tweets</button>
             </div>
+            <p class="copia-sep">Para empezar una historia nueva con los mismos personajes:</p>
+            <div class="fila-btns fila-izq">
+                <button class="mini-btn rojo" data-accion="borrar-tweets" ${tweets.length ? '' : 'disabled'}>🗑 Borrar todos los tweets</button>
+            </div>
         </div>
     </div>`;
 }
@@ -1888,6 +1892,29 @@ function descargarTodos() {
     };
 }
 
+async function borrarTodosLosTweets() {
+    const n = tweets.length;
+    if (!n) return aviso('No hay tweets que borrar', true);
+    const r = tweets.reduce((s, t) => s + t.datos.respuestas.length, 0);
+    const escrito = prompt(
+        `Se van a borrar ${n === 1 ? 'el tweet' : `los ${n} tweets`}${r ? ` y ${r === 1 ? 'su respuesta' : `sus ${r} respuestas`}` : ''}, con sus fotos. No se puede deshacer.\n\n` +
+        `Los personajes y los mensajes se quedan.\n\n` +
+        `Si quieres guardarlos, cancela y haz antes "Guardar copia".\n\n` +
+        `Para borrarlos, escribe BORRAR:`);
+    if (escrito === null) return;
+    if (escrito.trim().toUpperCase() !== 'BORRAR') return aviso('No se ha borrado nada (no has escrito BORRAR)', true);
+    temporizadores.forEach(tm => clearTimeout(tm));
+    temporizadores.clear();
+    try {
+        await apiJSON('tweets.php', { accion: 'borrar-todos' });
+        tweets = [];
+        app.descargados = {};   // la próxima descarga empieza de cero
+        guardarApp();
+        pintarPagina();
+        aviso(`${n === 1 ? 'Tweet borrado' : `${n} tweets borrados`}`);
+    } catch (e) { aviso(e.message, true); }
+}
+
 function apuntarDescargados(lista) {
     if (!app.descargados || typeof app.descargados !== 'object') app.descargados = {};
     lista.forEach(t => { app.descargados[t.id] = huellaTweet(t); });
@@ -2319,6 +2346,7 @@ document.addEventListener('click', async e => {
         case 'descargar': return descargar();
         case 'descargar-todos': return descargarTodos();
         case 'nuevo-chat': return nuevoChat();
+        case 'borrar-tweets': return borrarTodosLosTweets();
         case 'exportar': return exportarCopia();
         case 'importar': return importarCopia();
         case 'instalar': return instalarApp();
