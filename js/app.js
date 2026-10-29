@@ -56,12 +56,16 @@ const ICONO = (() => {
 })();
 
 /* ---------------------------------------------------------------------
-   EMOJIS: se ven con los de Twitter (Twemoji) en todos los dispositivos
+   EMOJIS: los de Twitter (Twemoji) en Android y ordenador; en iPhone, los de Apple
    (los dibujos están en la carpeta emojis/; no se cambian mientras se escribe)
    --------------------------------------------------------------------- */
 
+// En iPhone/iPad se dejan los de Apple (como en la app de Twitter para iPhone en 2015);
+// en Android y en el ordenador, los de Twitter (como en la web de Twitter en 2015)
+const EMOJIS_DE_APPLE = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 function emojis(raiz) {
-    if (typeof twemoji === 'undefined' || !raiz) return;
+    if (EMOJIS_DE_APPLE || typeof twemoji === 'undefined' || !raiz) return;
     twemoji.parse(raiz, {
         callback: icono => `emojis/${icono}.svg`,
         className: 'emoji'
