@@ -14,7 +14,7 @@
      tweets      → {id, autor_id, orden, datos}
      ajustes     → {clave, valor}
      imagenes    → {nombre, blob}   (lo que antes era la carpeta uploads)
-     chats       → {id, miembros, yo, mensajes, actualizado}   (mensajes directos)
+     chats       → {id, nombre, miembros, yo, mensajes, actualizado}   (mensajes directos)
    ===================================================================== */
 
 const Almacen = (() => {
@@ -300,6 +300,7 @@ const Almacen = (() => {
                 if (!fila) return;   // ya estaba borrado
                 fila.miembros = (p.miembros || fila.miembros).map(Number);
                 fila.yo = Number(p.yo) || fila.yo;
+                if (typeof p.nombre === 'string') fila.nombre = cortar(p.nombre.trim(), 50);
                 fila.mensajes = Array.isArray(p.mensajes) ? p.mensajes : fila.mensajes;
                 fila.actualizado = new Date().toISOString();
                 st.put(fila);

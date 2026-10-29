@@ -99,6 +99,7 @@ function normalizarChat(c) {
         if (m.imagen == null) m.imagen = '';
     });
     if (!c.miembros.includes(Number(c.yo))) c.yo = c.miembros[0] || null;
+    if (typeof c.nombre !== 'string') c.nombre = '';
     return c;
 }
 
@@ -230,7 +231,7 @@ function hayPendientes() {
     return temporizadores.size > 0 || temporizadoresChat.size > 0 || guardandoApp;
 }
 
-const datosChat = c => ({ accion: 'guardar', id: c.id, miembros: c.miembros, yo: c.yo, mensajes: c.mensajes });
+const datosChat = c => ({ accion: 'guardar', id: c.id, nombre: c.nombre, miembros: c.miembros, yo: c.yo, mensajes: c.mensajes });
 
 function guardarChat(c) {
     marcarGuardado('Guardando…');
@@ -853,7 +854,7 @@ function vistaMensajes() {
             ${avataresChat(c, 'dm-fila-av')}
             <div class="dm-fila-info">
                 <div class="dm-fila-cab">
-                    <b>${otros.length === 1 ? nombreHTML(otros[0]) : listaNombres(otros)}</b>
+                    <b>${otros.length === 1 ? nombreHTML(otros[0]) : (c.nombre ? esc(c.nombre) : listaNombres(otros))}</b>
                     ${otros.length === 1 ? `<span class="handle">${esc(otros[0].usuario)}</span>` : ''}
                     <span class="gris dm-fila-hora">${esc(ultimo ? ultimo.hora : '')}</span>
                 </div>
@@ -924,7 +925,7 @@ function vistaChat(c) {
         <button class="tb tb-rojo" data-accion="borrar-chat">Borrar</button>
         <button class="tb tb-azul" data-accion="descargar">Descargar</button>
     </div>
-    <p class="pista no-captura">Tus mensajes (los de ${esc(yo?.usuario || '')}) salen a la derecha, en color. Toca un mensaje para cambiar el texto; con ⋯ le pones hora o foto, lo mueves o lo borras.</p>
+    <p class="pista no-captura">Tus mensajes (los de ${esc(yo?.usuario || '')}) salen a la derecha, en color. Toca un mensaje para cambiar el texto; con ⋯ le pones hora o foto, lo mueves o lo borras.${uno ? '' : ' Toca el título para ponerle nombre al grupo.'}</p>
 
     <article class="dm-chat capturable" style="--tema:${yo ? yo.color : COLOR_DEFECTO}">
         <div class="dm-chat-cab">
@@ -933,7 +934,7 @@ function vistaChat(c) {
             <div class="dm-cab-nombres">
                 ${uno
                     ? `<b>${nombreHTML(uno)}</b><span class="handle">${esc(uno.usuario)}</span>`
-                    : `<b>${listaNombres(otros)}</b><span class="handle">${c.miembros.length} personas</span>`}
+                    : `<b class="ed dm-grupo-nom" data-bind="chat:nombre" data-ph="${listaNombres(otros)}" title="Toca para ponerle nombre al grupo"></b><span class="handle">${c.miembros.length} personas</span>`}
             </div>
         </div>
 
@@ -952,7 +953,8 @@ function vistaChat(c) {
                 <textarea id="dm-texto" rows="2" placeholder="Escribe un mensaje"></textarea>
                 <div class="dm-escribir-fila">
                     <button class="mini-btn" data-accion="chat-foto" id="dm-btn-foto">${fotoPendienteChat?.chatId === c.id ? '📷 Foto ✓' : '📷 Foto'}</button>
-                    <input type="text" id="dm-hora" placeholder="Hora (opcional)" value="${esc(horaChat.get(c.id) || '')}">
+                    <button class="mini-btn dm-auto ${horaAuto() ? 'act' : ''}" data-accion="chat-hora-auto" title="Poner la hora de ahora a cada mensaje">🕐 Auto</button>
+                    <input type="text" id="dm-hora" ${horaAuto() ? `disabled placeholder="Hora automática"` : `placeholder="Hora (opcional)" value="${esc(horaChat.get(c.id) || '')}"`}>
                     <button class="btn dm-enviar" data-accion="chat-enviar">Enviar</button>
                 </div>
             </div>
@@ -962,12 +964,19 @@ function vistaChat(c) {
 
 let fotoPendienteChat = null;   // foto elegida para el próximo mensaje
 
+// Hora automática: cada mensaje lleva la hora a la que se envía (se puede quitar con el botón "Auto")
+const horaAuto = () => app.horaAuto !== false;
+const horaAhora = () => { const d = new Date(); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
 /* ---------------------------------------------------------------------
    TEXTOS EDITABLES (se ven con colores; al tocarlos se editan)
    --------------------------------------------------------------------- */
 
 function objetoBind(bind) {
     const partes = bind.split(':');
+    if (partes[0] === 'chat') {
+        return chatActual ? { obj: chatActual, campo: partes[1], c: chatActual } : null;
+    }
     if (partes[0] === 'msg') {
         const c = chatActual;
         const m = c && c.mensajes.find(x => x.id === partes[1]);
@@ -1448,8 +1457,12 @@ async function enviarMensaje(c) {
         try { imagen = await subirImagen(foto); }
         catch (e) { return aviso(e.message, true); }
     }
-    const hora = $('#dm-hora').value.trim();
-    horaChat.set(c.id, hora);
+    let hora;
+    if (horaAuto()) hora = horaAhora();
+    else {
+        hora = $('#dm-hora').value.trim();
+        horaChat.set(c.id, hora);
+    }
     c.mensajes.push({ id: nuevoId(), autorId: remitenteChat.get(c.id), texto: texto.trim() ? texto : '', hora, imagen });
     fotoPendienteChat = null;
     guardarChat(c);
@@ -1536,6 +1549,17 @@ async function accionChat(accion, el, c) {
         }
         case 'chat-enviar':
             return enviarMensaje(c);
+        case 'chat-hora-auto': {
+            app.horaAuto = !horaAuto();
+            guardarApp();
+            const input = $('#dm-hora');
+            el.classList.toggle('act', horaAuto());
+            input.disabled = horaAuto();
+            input.placeholder = horaAuto() ? 'Hora automática' : 'Hora (opcional)';
+            input.value = horaAuto() ? '' : (horaChat.get(c.id) || '');
+            if (!horaAuto()) input.focus();
+            return aviso(horaAuto() ? 'Cada mensaje llevará la hora de ahora' : 'Ahora la hora la escribes tú');
+        }
         case 'msg-opciones': {
             const m = c.mensajes.find(x => x.id === el.closest('.dm-m')?.dataset.mid);
             return m && opcionesMensaje(c, m);
@@ -1913,7 +1937,8 @@ const PASOS_TUTORIAL = [
         ico: ICONO.sobre,
         titulo: '7. Mensajes directos',
         texto: `<p>En ${chip('Mensajes')} haces chats entre tus personajes: de dos, o de grupo (Twitter los estrenó en enero de 2015).</p>
-                <p>Con ${chip('Lo envía ⇄')} cambias quién escribe. ${chip('Ver como…')} decide quién eres tú: tus mensajes salen a la derecha y en tu color.</p>`
+                <p>Con ${chip('Lo envía ⇄')} cambias quién escribe. ${chip('Ver como…')} decide quién eres tú: tus mensajes salen a la derecha y en tu color.</p>
+                <p>En los grupos, toca el título para ponerle nombre. Con ${chip('🕐 Auto')} cada mensaje lleva la hora de ahora; quítalo si prefieres escribirla tú.</p>`
     },
     {
         ico: ICONO.camara,

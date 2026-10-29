@@ -543,3 +543,13 @@ html.capturando .dm-pie-falso { display: block; }
     .mirador-txt { display: none; }
     .mirador { padding-left: 4px; }
 }
+
+/* Nombre del grupo: si no tiene, se ven los nombres de la gente (también en la captura) */
+.dm-grupo-nom { cursor: text; }
+.dm-grupo-nom.ed:empty::before { content: attr(data-ph); color: var(--texto); }
+html.capturando .dm-grupo-nom.ed:empty::before { content: attr(data-ph); }
+.dm-grupo-nom.editando:empty::before { color: #c3ced6; }
+/* Botón de hora automática */
+.dm-auto { white-space: nowrap; }
+.dm-auto.act { background: #e8f5fd; border-color: var(--azul); color: var(--azul); font-weight: bold; }
+.dm-escribir-fila input:disabled { background: var(--fondo); }
