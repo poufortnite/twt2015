@@ -6,7 +6,7 @@
    (Los personajes y tweets NO van aquí: están en IndexedDB.)
    ===================================================================== */
 
-const CACHE = 'twt2015-v12';
+const CACHE = 'twt2015-v13';
 const ARCHIVOS = [
     './',
     'index.html',
@@ -18,7 +18,9 @@ const ARCHIVOS = [
     'iconos/icono.svg',
     'iconos/icono-192.png',
     'iconos/icono-512.png',
-    'iconos/apple-touch-icon.png'
+    'iconos/apple-touch-icon.png',
+    'fuentes/arimo-400.woff2',
+    'fuentes/arimo-700.woff2'
 ];
 
 self.addEventListener('install', e => {

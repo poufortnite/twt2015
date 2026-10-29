@@ -1722,8 +1722,23 @@ document.addEventListener('keydown', e => {
    CAPTURA
    --------------------------------------------------------------------- */
 
+// La letra de la app va metida dentro de cada imagen (si no, la imagen saldría con la del sistema)
+let cssFuentes = null;
+function fuentesParaCaptura() {
+    if (!cssFuentes) {
+        const comoDataURL = url => fetch(url).then(r => r.blob()).then(b => new Promise((ok, mal) => {
+            const l = new FileReader(); l.onload = () => ok(l.result); l.onerror = mal; l.readAsDataURL(b);
+        }));
+        cssFuentes = Promise.all([comoDataURL('fuentes/arimo-400.woff2'), comoDataURL('fuentes/arimo-700.woff2')])
+            .then(([n, b]) => `@font-face{font-family:"Arimo";font-weight:400;src:url(${n}) format("woff2")}@font-face{font-family:"Arimo";font-weight:700;src:url(${b}) format("woff2")}`)
+            .catch(() => { cssFuentes = null; return ''; });
+    }
+    return cssFuentes;
+}
+
 // Hace la imagen PNG de un elemento (siempre en tamaño PC, aunque sea desde el móvil)
 async function capturar(objetivo) {
+    const fontEmbedCSS = await fuentesParaCaptura();
     // Espera a que estén cargadas las fotos de dentro
     await Promise.all($$('img', objetivo).map(img => (img.decode ? img.decode() : Promise.resolve()).catch(() => {})));
     return htmlToImage.toBlob(objetivo, {
@@ -1734,7 +1749,7 @@ async function capturar(objetivo) {
         style: { margin: '0' },
         pixelRatio: 2,
         backgroundColor: getComputedStyle(objetivo).backgroundColor || '#ffffff',
-        skipFonts: true,
+        fontEmbedCSS,
         filter: n => !(n.classList && n.classList.contains('no-captura'))
     });
 }
