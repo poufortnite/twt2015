@@ -514,7 +514,7 @@ function vistaPerfiles() {
             </div>
             <p class="copia-sep">¿Quieres las imágenes de todos los tweets? Se hace una por tweet y te llegan todas juntas en un .zip.</p>
             <div class="fila-btns fila-izq">
-                <button class="mini-btn" data-accion="descargar-todos">🖼 Descargar todos los tweets</button>
+                <button class="mini-btn" data-accion="descargar-todos">🖼 Descargar tweets</button>
             </div>
         </div>
     </div>`;
@@ -597,7 +597,7 @@ function vistaInicio() {
     return `
     <div class="barra-pag barra-home no-captura">
         <span class="pista-izq">${v ? `Tweets recientes de las cuentas que sigue ${esc(v.usuario)}` : 'Todos los tweets, del más nuevo al más viejo'}</span>
-        <button class="tb" data-accion="descargar-todos" title="Una imagen por cada tweet, todas en un .zip">Descargar todos</button>
+        <button class="tb" data-accion="descargar-todos" title="Una imagen por cada tweet, todas en un .zip">Descargar tweets</button>
         <button class="tb tb-azul" data-accion="descargar">Descargar</button>
     </div>
     <div class="home capturable" style="--tema:${color}">
@@ -1838,14 +1838,64 @@ function progreso(texto) {
 
 let descargandoTodos = false;
 
-async function descargarTodos() {
-    if (descargandoTodos) return;
-    if (typeof htmlToImage === 'undefined') return aviso('No se ha cargado la librería de capturas', true);
-    // Del más viejo al más nuevo, así el 001 es el primero que se hizo
-    const lista = tweets.filter(t => pj(t.autor_id)).sort((a, b) => a.orden - b.orden || a.id - b.id);
-    if (!lista.length) return aviso('Todavía no hay tweets', true);
-    if (!confirm(`Se va a hacer una imagen de cada tweet (${lista.length}) y se guardarán todas juntas en un .zip.\n\n¿Seguimos?`)) return;
+// La app se apunta qué tweets ya se han descargado (y cómo estaban), para poder bajar solo los nuevos.
+// app.descargados = { idTweet: huella }; la huella cambia si se edita el tweet, sus respuestas o el autor.
+function huellaTweet(t) {
+    const txt = JSON.stringify([t.autor_id, t.datos, (t.datos.respuestas || []).map(r => pj(r.autorId)?.usuario), pj(t.autor_id)?.usuario]);
+    let h = 5381;
+    for (let i = 0; i < txt.length; i++) h = ((h << 5) + h + txt.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+}
 
+// Todos los tweets del más viejo al más nuevo (así el 001 es el primero que se hizo)
+const tweetsEnOrden = () => tweets.filter(t => pj(t.autor_id)).sort((a, b) => a.orden - b.orden || a.id - b.id);
+
+function descargarTodos() {
+    if (descargandoTodos) return;
+    const todosT = tweetsEnOrden();
+    if (!todosT.length) return aviso('Todavía no hay tweets', true);
+    const hechos = app.descargados && typeof app.descargados === 'object' ? app.descargados : {};
+    const nuevos = todosT.filter(t => !hechos[t.id]);
+    const cambiados = todosT.filter(t => hechos[t.id] && hechos[t.id] !== huellaTweet(t));
+    const yaHay = Object.keys(hechos).length > 0;
+
+    const opcion = (clave, titulo, texto, n) => `
+        <button class="op-desc" data-op="${clave}" ${n ? '' : 'disabled'}>
+            <b>${titulo} <span class="op-n">${n}</span></b>
+            <span>${texto}</span>
+        </button>`;
+    abrirModal('Descargar tweets', `
+        <p class="destino">Cada tweet sale en su propia imagen, y te llegan todas juntas en un .zip.</p>
+        <div class="opciones-desc">
+            ${yaHay ? opcion('nuevos', 'Solo los nuevos', 'Los que has hecho desde la última vez que descargaste.', nuevos.length) : ''}
+            ${yaHay ? opcion('cambiados', 'Nuevos y cambiados', 'También los que has editado o tienen respuestas nuevas.', nuevos.length + cambiados.length) : ''}
+            ${opcion('todos', 'Todos', 'Todos los tweets otra vez, desde el primero.', todosT.length)}
+        </div>
+        ${yaHay && !nuevos.length && !cambiados.length ? '<p class="gris">No hay nada nuevo desde la última descarga.</p>' : ''}
+        <button class="mini-btn op-marcar" data-op="marcar">${yaHay ? 'Marcar todos como ya descargados' : 'Ya los tengo: marcarlos como descargados sin bajarlos'}</button>`);
+    $('#modal-cuerpo').onclick = e => {
+        const b = e.target.closest('[data-op]');
+        if (!b || b.disabled) return;
+        const op = b.dataset.op;
+        if (op === 'marcar') {
+            apuntarDescargados(todosT);
+            cerrarModal();
+            return aviso('Hecho: la próxima vez solo saldrán los nuevos');
+        }
+        cerrarModal();
+        const lista = op === 'nuevos' ? nuevos : op === 'cambiados' ? todosT.filter(t => nuevos.includes(t) || cambiados.includes(t)) : todosT;
+        hacerZipTweets(lista, todosT, op);
+    };
+}
+
+function apuntarDescargados(lista) {
+    if (!app.descargados || typeof app.descargados !== 'object') app.descargados = {};
+    lista.forEach(t => { app.descargados[t.id] = huellaTweet(t); });
+    guardarApp();
+}
+
+async function hacerZipTweets(lista, todosT, tipo) {
+    if (typeof htmlToImage === 'undefined') return aviso('No se ha cargado la librería de capturas', true);
     descargandoTodos = true;
     guardarTodoYa();
     const vista = $('#vista');
@@ -1861,7 +1911,9 @@ async function descargarTodos() {
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
             const blob = await capturar($('.capturable', vista));
             const usuario = String(pj(t.autor_id).usuario).replace(/[^\p{L}\p{N}_-]/gu, '') || 'tweet';
-            archivos.push({ nombre: `tweet_${String(i + 1).padStart(3, '0')}_${usuario}.png`, datos: new Uint8Array(await blob.arrayBuffer()) });
+            // El número es su puesto entre TODOS los tweets, así los nuevos siguen la numeración (052, 053…)
+            const num = todosT.indexOf(t) + 1;
+            archivos.push({ nombre: `tweet_${String(num).padStart(3, '0')}_${usuario}.png`, datos: new Uint8Array(await blob.arrayBuffer()) });
         }
         progreso('Preparando el archivo…');
         const hoy = new Date();
@@ -1869,8 +1921,10 @@ async function descargarTodos() {
         terminarCaptura();
         progreso('');
         pintarPagina();
-        if (await entregarArchivo(zip, `twt2015-tweets_${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}.zip`)) {
-            aviso(`${archivos.length} tweets descargados`);
+        const sufijo = tipo === 'todos' ? '' : '_nuevos';
+        if (await entregarArchivo(zip, `twt2015-tweets${sufijo}_${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}_${dos(hoy.getHours())}${dos(hoy.getMinutes())}.zip`)) {
+            apuntarDescargados(lista);
+            aviso(`${archivos.length} ${archivos.length === 1 ? 'tweet descargado' : 'tweets descargados'}`);
         }
     } catch (e) {
         aviso('No se pudieron hacer las imágenes: ' + (e && e.message ? e.message : e), true);
@@ -2123,7 +2177,7 @@ const PASOS_TUTORIAL = [
         ico: ICONO.camara,
         titulo: '8. Descárgalo como imagen',
         texto: `<p>El botón azul ${chip('Descargar')} hace una imagen de lo que estás viendo: un tweet, un perfil, el inicio o un chat. Desde el móvil sale igual que en el ordenador.</p>
-                <p>En ${chip('Inicio')} tienes ${chip('Descargar todos')}: hace una imagen de cada tweet y te las da todas juntas en un .zip.</p>`
+                <p>En ${chip('Inicio')} tienes ${chip('Descargar tweets')}: hace una imagen de cada tweet y te las da todas juntas en un .zip. La próxima vez puedes bajar <b>solo los nuevos</b>.</p>`
     },
     {
         ico: ICONO.candadoGrande,

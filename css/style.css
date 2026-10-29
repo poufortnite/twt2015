@@ -595,3 +595,13 @@ html.capturando .dm-grupo-nom.ed:empty::before { content: attr(data-ph); }
 .inst-o { text-align: center; margin: 10px 0 8px; font-size: 13px; }
 .ico-paso { width: 18px; height: 18px; vertical-align: -3px; color: var(--azul); }
 .inst-ojo { background: #fff8e8; border: 1px solid #ffe2a8; border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; margin: 0 0 12px; }
+
+/* ---------- Descargar tweets: todos / nuevos / cambiados ---------- */
+.opciones-desc { display: flex; flex-direction: column; gap: 8px; }
+.op-desc { text-align: left; border: 1px solid var(--borde); background: #fff; border-radius: 8px; padding: 12px 14px; }
+.op-desc:hover:not(:disabled) { border-color: var(--azul); background: #f4fafe; }
+.op-desc:disabled { opacity: .45; cursor: default; }
+.op-desc b { display: flex; justify-content: space-between; font-size: 15px; }
+.op-desc span:not(.op-n) { display: block; font-size: 13px; color: var(--gris-osc); margin-top: 3px; }
+.op-n { background: var(--azul); color: #fff; border-radius: 10px; padding: 0 8px; font-size: 13px; line-height: 20px; }
+.op-marcar { margin-top: 14px; width: 100%; color: var(--gris-osc); }
