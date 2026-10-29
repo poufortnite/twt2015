@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter 2015</title>
+    <link rel="stylesheet" href="css/style.css?v=6">
+</head>
+<body>
+
+<header class="topbar">
+    <div class="topbar-in">
+        <nav class="topnav">
+            <a href="#/" data-pag="inicio">Inicio</a>
+            <a href="#/perfiles" data-pag="perfiles">Perfiles</a>
+        </nav>
+        <span id="guardado" class="guardado"></span>
+        <button class="mirador" data-accion="mirador" title="Cuenta desde la que se mira">
+            <span class="mirador-txt">Viendo como</span>
+            <span id="mirador-av" class="av"></span>
+        </button>
+    </div>
+</header>
+
+<main id="vista"></main>
+
+<div id="modal" class="modal" hidden>
+    <div class="modal-caja" role="dialog" aria-modal="true">
+        <div class="modal-cab">
+            <h2 id="modal-titulo"></h2>
+            <button class="modal-x" data-accion="cerrar-modal" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="modal-cuerpo" class="modal-cuerpo"></div>
+    </div>
+</div>
+
+<div id="aviso" class="aviso" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<script src="js/app.js?v=6"></script>
+</body>
+</html>

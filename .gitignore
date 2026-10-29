@@ -1,0 +1,14 @@
+# Configuración local (usuario y contraseña de la base de datos)
+api/config.php
+
+# Imágenes subidas desde la app (se guarda la carpeta, no su contenido)
+uploads/*
+!uploads/.gitkeep
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
