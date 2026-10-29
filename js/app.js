@@ -1018,11 +1018,20 @@ function vistaChat(c) {
         <div class="dm-pie">
             <div class="dm-pie-falso">Escribe un mensaje</div>
             <div class="dm-escribir no-captura">
-                <button class="dm-envia" data-accion="chat-remitente" title="Toca para cambiar quién lo envía">
-                    <span class="av" ${fondoPj(remitente)}></span>
-                    <span class="dm-envia-txt"><small>Lo envía</small><b>${remitente ? esc(remitente.nombre) : '¿Quién?'}</b></span>
-                    <span class="dm-envia-cambiar">⇄</span>
-                </button>
+                <div class="dm-envia-caja">
+                    <button class="dm-envia" data-accion="chat-remitente-menu" title="Elegir quién lo envía" aria-haspopup="listbox">
+                        <span class="av" ${fondoPj(remitente)}></span>
+                        <span class="dm-envia-txt"><small>Lo envía</small><b>${remitente ? esc(remitente.nombre) : '¿Quién?'}</b></span>
+                        <span class="dm-envia-flecha">▾</span>
+                    </button>
+                    <div class="dm-menu" role="listbox" hidden>
+                        ${c.miembros.map(pj).filter(Boolean).map(p => `
+                        <button class="dm-menu-op ${p.id === remitente?.id ? 'sel' : ''}" data-accion="chat-remitente" data-id="${p.id}" role="option">
+                            <span class="av" ${fondoPj(p)}></span>
+                            <span class="dm-menu-txt"><b>${nombreHTML(p)}</b><span class="handle">${esc(p.usuario)}${p.id === c.yo ? ' · tú' : ''}</span></span>
+                        </button>`).join('')}
+                    </div>
+                </div>
                 <textarea id="dm-texto" rows="2" placeholder="Escribe un mensaje"></textarea>
                 <div class="dm-escribir-fila">
                     <button class="mini-btn" data-accion="chat-foto" id="dm-btn-foto">${fotoPendienteChat?.chatId === c.id ? '📷 Foto ✓' : '📷 Foto'}</button>
@@ -1518,7 +1527,19 @@ function pintarRemitente(c) {
     if (!boton) return;
     $('.av', boton).style.backgroundImage = p ? `url("${urlImg(p.foto)}")` : '';
     $('b', boton).textContent = p ? p.nombre : '¿Quién?';
+    $$('.dm-menu-op').forEach(o => o.classList.toggle('sel', Number(o.dataset.id) === p?.id));
 }
+
+function cerrarMenuRemitente() {
+    const menu = $('.dm-menu');
+    if (menu) menu.hidden = true;
+}
+
+// Al tocar fuera del desplegable, se cierra
+document.addEventListener('click', e => {
+    if (!e.target.closest('.dm-envia-caja')) cerrarMenuRemitente();
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarMenuRemitente(); });
 
 async function enviarMensaje(c) {
     const caja = $('#dm-texto');
@@ -1602,13 +1623,18 @@ function opcionesMensaje(c, m) {
 
 async function accionChat(accion, el, c) {
     switch (accion) {
-        case 'chat-remitente': {
-            // Cada toque pasa a la siguiente persona del chat (en un chat de dos, cambia de una a otra)
-            const lista = c.miembros.filter(id => pj(id));
-            const i = lista.indexOf(remitenteChat.get(c.id));
-            remitenteChat.set(c.id, lista[(i + 1) % lista.length]);
-            return pintarRemitente(c);
+        case 'chat-remitente-menu': {
+            const menu = $('.dm-menu');
+            menu.hidden = !menu.hidden;
+            if (!menu.hidden) $('.dm-menu-op.sel', menu)?.scrollIntoView({ block: 'nearest' });
+            return;
         }
+        case 'chat-remitente':
+            remitenteChat.set(c.id, Number(el.dataset.id));
+            pintarRemitente(c);
+            cerrarMenuRemitente();
+            if (!matchMedia('(pointer: coarse)').matches) $('#dm-texto')?.focus();
+            return;
         case 'chat-foto': {
             if (fotoPendienteChat?.chatId === c.id) {
                 fotoPendienteChat = null;
@@ -2011,7 +2037,7 @@ const PASOS_TUTORIAL = [
         ico: ICONO.sobre,
         titulo: '7. Mensajes directos',
         texto: `<p>En ${chip('Mensajes')} haces chats entre tus personajes: de dos, o de grupo (Twitter los estrenó en enero de 2015).</p>
-                <p>Con ${chip('Lo envía ⇄')} cambias quién escribe. ${chip('Ver como…')} decide quién eres tú: tus mensajes salen a la derecha y en tu color.</p>
+                <p>Con ${chip('Lo envía ▾')} eliges quién escribe. ${chip('Ver como…')} decide quién eres tú: tus mensajes salen a la derecha y en tu color.</p>
                 <p>En los grupos, toca el título para ponerle nombre. Con ${chip('🕐 Auto')} cada mensaje lleva la hora de ahora; quítalo si prefieres escribirla tú.</p>`
     },
     {
