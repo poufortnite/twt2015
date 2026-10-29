@@ -1723,6 +1723,11 @@ async function capturar(objetivo) {
     // Espera a que estén cargadas las fotos de dentro
     await Promise.all($$('img', objetivo).map(img => (img.decode ? img.decode() : Promise.resolve()).catch(() => {})));
     return htmlToImage.toBlob(objetivo, {
+        // En pantallas anchas el margen que centra la página se copiaba a la imagen
+        // y lo dejaba todo desplazado (o en blanco): en la copia se quita
+        width: objetivo.offsetWidth,
+        height: objetivo.offsetHeight,
+        style: { margin: '0' },
         pixelRatio: 2,
         backgroundColor: getComputedStyle(objetivo).backgroundColor || '#ffffff',
         skipFonts: true,
