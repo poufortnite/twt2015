@@ -5,6 +5,8 @@
    Páginas:  #/                 inicio (todos los perfiles)
              #/perfil/ID[/tab]  perfil (tab: respuestas | fotos)
              #/tweet/ID         un tweet con sus respuestas
+             #/mensajes         mensajes directos (lista de chats)
+             #/chat/ID          un chat
    Todo se guarda solo, en este mismo dispositivo (ver almacen.js).
    ===================================================================== */
 
@@ -46,6 +48,7 @@ const ICONO = (() => {
         enlace: g('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>'),
         calendario: g('<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>'),
         camara: g('<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3L9.5 4.8h5L16.2 7h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.4"/>'),
+        sobre: g('<rect x="3" y="5.5" width="18" height="13" rx="1.8"/><path d="m3.6 6.6 8.4 6.6 8.4-6.6"/>'),
         candadoGrande: g('<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>'),
         verificado: `<svg class="ico-verif" viewBox="0 0 24 24" aria-label="Cuenta verificada"><polygon points="${pts.join(' ')}" fill="#55acee" stroke="#55acee" stroke-width="1.6" stroke-linejoin="round"/><path d="m7.7 12.3 2.9 2.9 5.8-6.1" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
         candado: '<svg class="ico-candado" viewBox="0 0 12 14" aria-label="Cuenta protegida"><path fill="currentColor" d="M10 6V4a4 4 0 0 0-8 0v2H1v8h10V6h-1zM3.5 4a2.5 2.5 0 0 1 5 0v2h-5V4z"/></svg>'
@@ -58,6 +61,7 @@ const ICONO = (() => {
 
 let personajes = [];   // perfiles
 let tweets = [];       // [{id, autor_id, orden, datos}], ordenados de más nuevo a más viejo
+let chats = [];        // [{id, miembros, yo, mensajes: [{id, autorId, texto, hora, imagen}]}]
 let app = { miradorId: null, relaciones: {} };
 
 function datosTweetNuevo() {
@@ -84,6 +88,19 @@ function ordenarTweets() {
 const pj = id => personajes.find(p => p.id === Number(id)) || null;
 const tweetPorId = id => tweets.find(t => t.id === Number(id)) || null;
 const mirador = () => pj(app.miradorId);
+const chatPorId = id => chats.find(c => c.id === Number(id)) || null;
+
+function normalizarChat(c) {
+    c.miembros = (Array.isArray(c.miembros) ? c.miembros : []).map(Number);
+    c.mensajes = Array.isArray(c.mensajes) ? c.mensajes : [];
+    c.mensajes.forEach(m => {
+        if (m.texto == null) m.texto = '';
+        if (m.hora == null) m.hora = '';
+        if (m.imagen == null) m.imagen = '';
+    });
+    if (!c.miembros.includes(Number(c.yo))) c.yo = c.miembros[0] || null;
+    return c;
+}
 
 /* ---------------------------------------------------------------------
    UTILIDADES
@@ -207,8 +224,27 @@ function marcarGuardado(texto, error = false) {
     el.classList.toggle('error', error);
 }
 
+const temporizadoresChat = new Map();   // id de chat → timeout
+
 function hayPendientes() {
-    return temporizadores.size > 0 || guardandoApp;
+    return temporizadores.size > 0 || temporizadoresChat.size > 0 || guardandoApp;
+}
+
+const datosChat = c => ({ accion: 'guardar', id: c.id, miembros: c.miembros, yo: c.yo, mensajes: c.mensajes });
+
+function guardarChat(c) {
+    marcarGuardado('Guardando…');
+    clearTimeout(temporizadoresChat.get(c.id));
+    temporizadoresChat.set(c.id, setTimeout(async () => {
+        temporizadoresChat.delete(c.id);
+        try {
+            await apiJSON('chats.php', datosChat(c));
+            if (!hayPendientes()) marcarGuardado('Guardado');
+        } catch (e) {
+            marcarGuardado('No se ha guardado', true);
+            aviso(e.message, true);
+        }
+    }, 600));
 }
 
 function guardarTweet(t) {
@@ -254,6 +290,12 @@ function guardarTodoYa() {
         if (t) apiJSON('tweets.php', { accion: 'guardar', id: t.id, autor_id: t.autor_id, datos: t.datos }).catch(() => {});
     }
     temporizadores.clear();
+    for (const [id, tm] of temporizadoresChat) {
+        clearTimeout(tm);
+        const c = chatPorId(id);
+        if (c) apiJSON('chats.php', datosChat(c)).catch(() => {});
+    }
+    temporizadoresChat.clear();
     if (guardandoApp) {
         clearTimeout(tApp);
         apiJSON('ajustes.php', app).catch(() => {});
@@ -263,8 +305,9 @@ function guardarTodoYa() {
 
 async function cargarTodo() {
     await Almacen.cargarImagenes();
-    const [p, t, a] = await Promise.all([api('personajes.php'), api('tweets.php'), api('ajustes.php')]);
+    const [p, t, a, c] = await Promise.all([api('personajes.php'), api('tweets.php'), api('ajustes.php'), api('chats.php')]);
     personajes = p.personajes;
+    chats = c.chats.map(normalizarChat);
     tweets = t.tweets.map(normalizarTweet);
     ordenarTweets();
     app = Object.assign({ miradorId: null, relaciones: {} }, a.app || {});
@@ -334,6 +377,22 @@ function prefijoMencion(t, r) {
     return `<span class="enlace mencion-auto">${esc(u)}</span> `;
 }
 
+// "Retwitteado por Ane", "Retwitteado por Ane y Jon", "Retwitteado por Ane y 3 más".
+// Primero va la cuenta desde la que se mira (si lo ha retwitteado) y luego las que sigue.
+function rtPorHTML(t) {
+    if (pj(t.autor_id)?.privada) return '';
+    let lista = t.datos.rtPor.map(pj).filter(Boolean);
+    if (!lista.length) return '';
+    const v = mirador();
+    const peso = p => (v && p.id === v.id) ? 0 : (v && relacion(p) === 'siguiendo') ? 1 : 2;
+    lista = lista.map((p, i) => ({ p, i })).sort((a, b) => peso(a.p) - peso(b.p) || a.i - b.i).map(x => x.p);
+    const nombre = p => `<span class="rt-nom" data-accion="ir-perfil" data-id="${p.id}">${esc(p.nombre)}</span>`;
+    const quien = lista.length === 1 ? nombre(lista[0])
+        : lista.length === 2 ? `${nombre(lista[0])} y ${nombre(lista[1])}`
+        : `${nombre(lista[0])} y ${lista.length - 1} más`;
+    return `<div class="tw-rt"><span class="icono">${ICONO.retweet}</span><span>Retwitteado por ${quien}</span></div>`;
+}
+
 function imagenHTML(nombre, clase = '') {
     return nombre ? `<div class="t-img ${clase}"><img src="${urlImg(nombre)}" alt=""></div>` : '';
 }
@@ -379,6 +438,10 @@ function vistaPerfiles() {
             <div class="fila-btns fila-izq">
                 <button class="mini-btn" data-accion="exportar">⬇ Guardar copia</button>
                 <button class="mini-btn" data-accion="importar">⬆ Cargar copia</button>
+            </div>
+            <p class="copia-sep">¿Quieres las imágenes de todos los tweets? Se hace una por tweet y te llegan todas juntas en un .zip.</p>
+            <div class="fila-btns fila-izq">
+                <button class="mini-btn" data-accion="descargar-todos">🖼 Descargar todos los tweets</button>
             </div>
         </div>
     </div>`;
@@ -461,6 +524,7 @@ function vistaInicio() {
     return `
     <div class="barra-pag barra-home no-captura">
         <span class="pista-izq">${v ? `Tweets recientes de las cuentas que sigue ${esc(v.usuario)}` : 'Todos los tweets, del más nuevo al más viejo'}</span>
+        <button class="tb" data-accion="descargar-todos" title="Una imagen por cada tweet, todas en un .zip">Descargar todos</button>
         <button class="tb tb-azul" data-accion="descargar">Descargar</button>
     </div>
     <div class="home capturable" style="--tema:${color}">
@@ -676,6 +740,7 @@ function vistaTweet(t) {
 
     <article class="tweet capturable" style="--tema:${a ? a.color : COLOR_DEFECTO}">
         <div class="main-tweet">
+            ${rtPorHTML(t)}
             <div class="u-info">
                 <div class="av av-grande" data-accion="autor-tweet" ${fondoPj(a)}></div>
                 <div class="u-nombres" data-accion="autor-tweet">
@@ -748,12 +813,166 @@ function respuestaHTML(t, r, i) {
     </div>`;
 }
 
+
+/* ---------------------------------------------------------------------
+   PÁGINAS: MENSAJES DIRECTOS
+   (En 2015 Twitter tenía mensajes directos, y desde enero de 2015 también de grupo)
+   --------------------------------------------------------------------- */
+
+let chatActual = null;
+const remitenteChat = new Map();   // id de chat → quién va a enviar el próximo mensaje
+const horaChat = new Map();        // id de chat → última hora escrita
+
+const yoDe = c => pj(c.yo) || pj(c.miembros[0]);
+const otrosDe = c => c.miembros.filter(id => id !== c.yo).map(pj).filter(Boolean);
+
+// "Ane", "Ane y Jon", "Ane, Jon y Miren"
+function listaNombres(lista) {
+    const n = lista.map(p => esc(p.nombre));
+    return n.length <= 1 ? (n[0] || '') : n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1];
+}
+
+function avataresChat(c, clase) {
+    const otros = otrosDe(c);
+    if (otros.length <= 1) return `<div class="av ${clase}" ${fondoPj(otros[0])}></div>`;
+    return `<div class="av ${clase} av-grupo">${otros.slice(0, 4).map(p => `<span ${fondoPj(p)}></span>`).join('')}</div>`;
+}
+
+function vistaMensajes() {
+    document.title = 'Mensajes directos';
+    const lista = chats.filter(c => c.miembros.filter(id => pj(id)).length >= 2);
+    const filas = lista.map(c => {
+        const otros = otrosDe(c);
+        const ultimo = c.mensajes[c.mensajes.length - 1];
+        const resumen = ultimo
+            ? (ultimo.texto.trim() ? esc(ultimo.texto.split('\n')[0]) : (ultimo.imagen ? '📷 Foto' : ''))
+            : '<span class="ph">Sin mensajes todavía</span>';
+        const quien = ultimo && ultimo.autorId === c.yo ? 'Tú: ' : (ultimo && otros.length > 1 && pj(ultimo.autorId) ? esc(pj(ultimo.autorId).nombre.split(' ')[0]) + ': ' : '');
+        return `
+        <a class="dm-fila" href="#/chat/${c.id}">
+            ${avataresChat(c, 'dm-fila-av')}
+            <div class="dm-fila-info">
+                <div class="dm-fila-cab">
+                    <b>${otros.length === 1 ? nombreHTML(otros[0]) : listaNombres(otros)}</b>
+                    ${otros.length === 1 ? `<span class="handle">${esc(otros[0].usuario)}</span>` : ''}
+                    <span class="gris dm-fila-hora">${esc(ultimo ? ultimo.hora : '')}</span>
+                </div>
+                <div class="dm-fila-txt">${quien}${resumen}</div>
+                <div class="dm-fila-yo">Visto como ${esc(yoDe(c)?.usuario || '')}</div>
+            </div>
+        </a>`;
+    }).join('');
+
+    return `
+    <div class="barra-pag barra-dm no-captura">
+        <span class="pista-izq">Conversaciones entre tus personajes, de dos o en grupo.</span>
+        <button class="tb tb-azul" data-accion="nuevo-chat">+ Nuevo mensaje</button>
+    </div>
+    <div class="dm caja">
+        <div class="dm-tit">
+            <h2>Mensajes directos</h2>
+        </div>
+        ${filas || `
+        <div class="vacio-tl">
+            <span class="icono dm-vacio-ico">${ICONO.sobre}</span>
+            <p>${personajes.length < 2 ? 'Para hacer un chat necesitas al menos dos personajes.' : 'Todavía no hay mensajes.'}</p>
+            ${personajes.length < 2
+                ? '<a class="enlace" href="#/perfiles">Crear personajes</a>'
+                : '<button class="btn" data-accion="nuevo-chat">Empezar una conversación</button>'}
+        </div>`}
+    </div>`;
+}
+
+function mensajeHTML(c, m, i) {
+    const lista = c.mensajes;
+    const mio = m.autorId === c.yo;
+    const a = pj(m.autorId);
+    const grupo = c.miembros.length > 2;
+    const anterior = lista[i - 1];
+    const siguiente = lista[i + 1];
+    const empiezaTanda = !anterior || anterior.autorId !== m.autorId;
+    const acabaTanda = !siguiente || siguiente.autorId !== m.autorId;
+    return `
+    <div class="dm-m ${mio ? 'mio' : 'otro'} ${empiezaTanda ? 'tanda-ini' : ''} ${acabaTanda ? 'tanda-fin' : ''}" data-mid="${m.id}">
+        ${mio ? '' : `<div class="dm-m-av">${acabaTanda ? `<div class="av" data-accion="ir-perfil" data-id="${a?.id}" ${fondoPj(a)}></div>` : ''}</div>`}
+        <div class="dm-m-col">
+            ${grupo && !mio && empiezaTanda ? `<div class="dm-quien">${a ? esc(a.nombre) : '¿Quién?'}</div>` : ''}
+            <div class="dm-burbuja ${m.imagen ? 'con-foto' : ''} ${!m.texto && m.imagen ? 'solo-foto' : ''}">
+                ${m.imagen ? `<img src="${urlImg(m.imagen)}" alt="">` : ''}
+                <span class="ed dm-txt" data-bind="msg:${m.id}:texto" data-multi data-ph="${m.imagen ? '' : 'Mensaje'}"></span>
+            </div>
+            <div class="dm-hora ed" data-bind="msg:${m.id}:hora" data-ph="hora"></div>
+        </div>
+        <button class="dm-mas no-captura" data-accion="msg-opciones" title="Opciones">${ICONO.more}</button>
+    </div>`;
+}
+
+function vistaChat(c) {
+    chatActual = c;
+    const yo = yoDe(c);
+    const otros = otrosDe(c);
+    const uno = otros.length === 1 ? otros[0] : null;
+    document.title = `Mensajes directos${uno ? ' con ' + uno.nombre : ''}`;
+    if (!remitenteChat.has(c.id) || !c.miembros.includes(remitenteChat.get(c.id))) remitenteChat.set(c.id, c.yo);
+    const remitente = pj(remitenteChat.get(c.id));
+
+    return `
+    <div class="barra-pag no-captura">
+        <a class="tb" href="#/mensajes">← Mensajes</a>
+        <button class="tb" data-accion="chat-personas">Personas</button>
+        <button class="tb" data-accion="chat-yo">Ver como…</button>
+        <button class="tb tb-rojo" data-accion="borrar-chat">Borrar</button>
+        <button class="tb tb-azul" data-accion="descargar">Descargar</button>
+    </div>
+    <p class="pista no-captura">Tus mensajes (los de ${esc(yo?.usuario || '')}) salen a la derecha, en color. Toca un mensaje para cambiar el texto; con ⋯ le pones hora o foto, lo mueves o lo borras.</p>
+
+    <article class="dm-chat capturable" style="--tema:${yo ? yo.color : COLOR_DEFECTO}">
+        <div class="dm-chat-cab">
+            <span class="dm-volver">‹</span>
+            ${avataresChat(c, 'dm-cab-av')}
+            <div class="dm-cab-nombres">
+                ${uno
+                    ? `<b>${nombreHTML(uno)}</b><span class="handle">${esc(uno.usuario)}</span>`
+                    : `<b>${listaNombres(otros)}</b><span class="handle">${c.miembros.length} personas</span>`}
+            </div>
+        </div>
+
+        <div class="dm-msgs">
+            ${c.mensajes.length ? c.mensajes.map((m, i) => mensajeHTML(c, m, i)).join('') : '<div class="dm-sin no-captura">Escribe el primer mensaje abajo ↓</div>'}
+        </div>
+
+        <div class="dm-pie">
+            <div class="dm-pie-falso">Escribe un mensaje</div>
+            <div class="dm-escribir no-captura">
+                <button class="dm-envia" data-accion="chat-remitente" title="Toca para cambiar quién lo envía">
+                    <span class="av" ${fondoPj(remitente)}></span>
+                    <span class="dm-envia-txt"><small>Lo envía</small><b>${remitente ? esc(remitente.nombre) : '¿Quién?'}</b></span>
+                    <span class="dm-envia-cambiar">⇄</span>
+                </button>
+                <textarea id="dm-texto" rows="2" placeholder="Escribe un mensaje"></textarea>
+                <div class="dm-escribir-fila">
+                    <button class="mini-btn" data-accion="chat-foto" id="dm-btn-foto">${fotoPendienteChat?.chatId === c.id ? '📷 Foto ✓' : '📷 Foto'}</button>
+                    <input type="text" id="dm-hora" placeholder="Hora (opcional)" value="${esc(horaChat.get(c.id) || '')}">
+                    <button class="btn dm-enviar" data-accion="chat-enviar">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </article>`;
+}
+
+let fotoPendienteChat = null;   // foto elegida para el próximo mensaje
+
 /* ---------------------------------------------------------------------
    TEXTOS EDITABLES (se ven con colores; al tocarlos se editan)
    --------------------------------------------------------------------- */
 
 function objetoBind(bind) {
     const partes = bind.split(':');
+    if (partes[0] === 'msg') {
+        const c = chatActual;
+        const m = c && c.mensajes.find(x => x.id === partes[1]);
+        return m ? { obj: m, campo: partes[2], c } : null;
+    }
     const t = tweetActual;
     if (!t) return null;
     if (partes[0] === 'tweet') return { obj: t.datos, campo: partes[1], t };
@@ -793,7 +1012,8 @@ document.addEventListener('input', e => {
     if (!b) return;
     const texto = el.innerText.replace(/\n$/, '');
     b.obj[b.campo] = el.hasAttribute('data-multi') ? texto : texto.trim();
-    guardarTweet(b.t);
+    if (b.c) guardarChat(b.c);
+    else guardarTweet(b.t);
 });
 
 document.addEventListener('focusout', e => {
@@ -1051,7 +1271,7 @@ function formPersonaje(id = null) {
 
 async function borrarPersonaje(p) {
     const suyos = tweets.filter(t => t.autor_id === p.id).length;
-    if (!confirm(`¿Borrar a ${p.nombre}?\n\nSe borrarán también ${suyos === 1 ? 'su tweet' : `sus ${suyos} tweets`}, sus respuestas en otros tweets y sus fotos.`)) return;
+    if (!confirm(`¿Borrar a ${p.nombre}?\n\nSe borrarán también ${suyos === 1 ? 'su tweet' : `sus ${suyos} tweets`}, sus respuestas en otros tweets, sus mensajes directos y sus fotos.`)) return;
 
     // Quitarlo de los tweets de los demás
     const cambiados = [];
@@ -1064,8 +1284,20 @@ async function borrarPersonaje(p) {
         d.respuestas.filter(r => r.autorId === p.id).forEach(r => quitarRespuesta(t, r.id));
         if (JSON.stringify(d) !== antes) cambiados.push(t);
     });
+    // Y de los chats: se va del chat con sus mensajes; si el chat se queda con una sola persona, se borra
+    const chatsCambiados = [], chatsBorrados = [];
+    chats.forEach(c => {
+        if (!c.miembros.includes(p.id) && !c.mensajes.some(m => m.autorId === p.id)) return;
+        c.miembros = c.miembros.filter(x => x !== p.id);
+        c.mensajes = c.mensajes.filter(m => m.autorId !== p.id);
+        if (c.yo === p.id) c.yo = c.miembros[0] || null;
+        (c.miembros.length < 2 ? chatsBorrados : chatsCambiados).push(c);
+    });
     try {
         await Promise.all(cambiados.map(t => apiJSON('tweets.php', { accion: 'guardar', id: t.id, autor_id: t.autor_id, datos: t.datos })));
+        await Promise.all(chatsCambiados.map(c => apiJSON('chats.php', datosChat(c))));
+        await Promise.all(chatsBorrados.map(c => apiJSON('chats.php', { accion: 'borrar', id: c.id })));
+        chats = chats.filter(c => !chatsBorrados.includes(c));
         const fd = new FormData();
         fd.append('accion', 'borrar');
         fd.append('id', p.id);
@@ -1177,40 +1409,338 @@ function nuevaRespuesta(t, parentId) {
     };
 }
 
+
+/* ---------- Acciones de los mensajes directos ---------- */
+
+async function nuevoChat() {
+    if (personajes.length < 2) {
+        aviso('Para un chat hacen falta al menos dos personajes', true);
+        location.hash = '#/perfiles';
+        return;
+    }
+    const v = mirador();
+    elegirVarios('Nuevo mensaje', v ? [v.id] : [], 20, async sel => {
+        if (sel.length < 2) return aviso('Elige al menos dos personas', true);
+        const yo = v && sel.includes(v.id) ? v.id : sel[0];
+        try {
+            const res = await apiJSON('chats.php', { accion: 'crear', miembros: sel, yo });
+            chats.unshift(normalizarChat(res.chat));
+            location.hash = `#/chat/${res.chat.id}`;
+        } catch (e) { aviso(e.message, true); }
+    }, { texto: '¿Quién está en la conversación? Dos personas, o hasta 20 para un mensaje de grupo.' });
+}
+
+function pintarRemitente(c) {
+    const p = pj(remitenteChat.get(c.id));
+    const boton = $('.dm-envia');
+    if (!boton) return;
+    $('.av', boton).style.backgroundImage = p ? `url("${urlImg(p.foto)}")` : '';
+    $('b', boton).textContent = p ? p.nombre : '¿Quién?';
+}
+
+async function enviarMensaje(c) {
+    const caja = $('#dm-texto');
+    const texto = caja.value.replace(/\s+$/, '');
+    const foto = fotoPendienteChat?.chatId === c.id ? fotoPendienteChat.blob : null;
+    if (!texto.trim() && !foto) { caja.focus(); return aviso('Escribe algo', true); }
+    let imagen = '';
+    if (foto) {
+        try { imagen = await subirImagen(foto); }
+        catch (e) { return aviso(e.message, true); }
+    }
+    const hora = $('#dm-hora').value.trim();
+    horaChat.set(c.id, hora);
+    c.mensajes.push({ id: nuevoId(), autorId: remitenteChat.get(c.id), texto: texto.trim() ? texto : '', hora, imagen });
+    fotoPendienteChat = null;
+    guardarChat(c);
+    pintarPagina();
+    window.scrollTo(0, document.body.scrollHeight);
+    // En el ordenador se sigue escribiendo directamente; en el móvil no, para no tapar la pantalla con el teclado
+    if (!matchMedia('(pointer: coarse)').matches) $('#dm-texto')?.focus();
+}
+
+function opcionesMensaje(c, m) {
+    const i = c.mensajes.indexOf(m);
+    const total = c.mensajes.length;
+    abrirModal('Mensaje', `
+        <div class="opciones">
+            <button data-op="autor">👤 Cambiar quién lo envía</button>
+            <button data-op="hora">🕐 ${m.hora ? 'Cambiar la hora' : 'Poner la hora'}</button>
+            <button data-op="foto">${m.imagen ? '⊘ Quitar la foto' : '📷 Añadir foto'}</button>
+            <button data-op="subir" ${i === 0 ? 'disabled' : ''}>▲ Subir</button>
+            <button data-op="bajar" ${i === total - 1 ? 'disabled' : ''}>▼ Bajar</button>
+            <button data-op="borrar" class="rojo">✕ Borrar mensaje</button>
+        </div>`);
+    $('#modal-cuerpo').onclick = async e => {
+        const b = e.target.closest('[data-op]');
+        if (!b || b.disabled) return;
+        const op = b.dataset.op;
+        if (op === 'hora') {
+            cerrarModal();
+            const ed = $(`.dm-m[data-mid="${m.id}"] .dm-hora`);
+            if (ed) { ed.classList.add('editando'); empezarEdicion(ed); }
+            return;
+        }
+        if (op === 'autor') {
+            return elegirUno('¿Quién lo envía?', m.autorId, id => {
+                if (!id) return;
+                m.autorId = id;
+                guardarChat(c);
+                pintarPagina();
+            }, { excluir: personajes.filter(p => !c.miembros.includes(p.id)).map(p => p.id) });
+        }
+        if (op === 'foto') {
+            if (m.imagen) {
+                m.imagen = '';
+            } else {
+                const blob = await pedirImagen(1200);
+                if (!blob) return;
+                try { m.imagen = await subirImagen(blob); }
+                catch (err) { return aviso(err.message, true); }
+            }
+        }
+        if (op === 'subir' || op === 'bajar') {
+            const j = i + (op === 'subir' ? -1 : 1);
+            if (j < 0 || j >= total) return;
+            [c.mensajes[i], c.mensajes[j]] = [c.mensajes[j], c.mensajes[i]];
+        }
+        if (op === 'borrar') {
+            if ((m.texto.trim() || m.imagen) && !confirm('¿Borrar este mensaje?')) return;
+            c.mensajes.splice(i, 1);
+        }
+        cerrarModal();
+        guardarChat(c);
+        pintarPagina();
+    };
+}
+
+async function accionChat(accion, el, c) {
+    switch (accion) {
+        case 'chat-remitente': {
+            // Cada toque pasa a la siguiente persona del chat (en un chat de dos, cambia de una a otra)
+            const lista = c.miembros.filter(id => pj(id));
+            const i = lista.indexOf(remitenteChat.get(c.id));
+            remitenteChat.set(c.id, lista[(i + 1) % lista.length]);
+            return pintarRemitente(c);
+        }
+        case 'chat-foto': {
+            if (fotoPendienteChat?.chatId === c.id) {
+                fotoPendienteChat = null;
+            } else {
+                const blob = await pedirImagen(1200);
+                if (!blob) return;
+                fotoPendienteChat = { chatId: c.id, blob };
+            }
+            $('#dm-btn-foto').textContent = fotoPendienteChat ? '📷 Foto ✓' : '📷 Foto';
+            return;
+        }
+        case 'chat-enviar':
+            return enviarMensaje(c);
+        case 'msg-opciones': {
+            const m = c.mensajes.find(x => x.id === el.closest('.dm-m')?.dataset.mid);
+            return m && opcionesMensaje(c, m);
+        }
+        case 'chat-personas':
+            return elegirVarios('Personas en el chat', c.miembros, 20, sel => {
+                if (sel.length < 2) return aviso('Un chat necesita al menos dos personas', true);
+                c.miembros = sel;
+                if (!sel.includes(c.yo)) c.yo = sel[0];
+                guardarChat(c);
+                pintarPagina();
+            }, { texto: 'Dos personas, o hasta 20 para un grupo. Los mensajes de quien quites se quedan.' });
+        case 'chat-yo':
+            return elegirUno('¿Quién eres tú en este chat?', c.yo, id => {
+                if (!id) return;
+                c.yo = id;
+                remitenteChat.set(c.id, id);
+                guardarChat(c);
+                pintarPagina();
+            }, {
+                excluir: personajes.filter(p => !c.miembros.includes(p.id)).map(p => p.id),
+                texto: 'Es la cuenta con la sesión iniciada: sus mensajes salen a la derecha y en su color.'
+            });
+        case 'borrar-chat': {
+            if (!confirm('¿Borrar este chat con todos sus mensajes?')) return;
+            clearTimeout(temporizadoresChat.get(c.id));
+            temporizadoresChat.delete(c.id);
+            try {
+                await apiJSON('chats.php', { accion: 'borrar', id: c.id });
+                chats = chats.filter(x => x !== c);
+                location.hash = '#/mensajes';
+            } catch (e) { aviso(e.message, true); }
+            return;
+        }
+    }
+}
+
+// Enter envía el mensaje en el ordenador (Mayús+Enter hace salto de línea)
+document.addEventListener('keydown', e => {
+    if (e.target.id !== 'dm-texto' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    if (matchMedia('(pointer: coarse)').matches || !chatActual) return;
+    e.preventDefault();
+    enviarMensaje(chatActual);
+});
+
 /* ---------------------------------------------------------------------
    CAPTURA
    --------------------------------------------------------------------- */
+
+// Hace la imagen PNG de un elemento (siempre en tamaño PC, aunque sea desde el móvil)
+async function capturar(objetivo) {
+    // Espera a que estén cargadas las fotos de dentro
+    await Promise.all($$('img', objetivo).map(img => (img.decode ? img.decode() : Promise.resolve()).catch(() => {})));
+    return htmlToImage.toBlob(objetivo, {
+        pixelRatio: 2,
+        backgroundColor: getComputedStyle(objetivo).backgroundColor || '#ffffff',
+        skipFonts: true,
+        filter: n => !(n.classList && n.classList.contains('no-captura'))
+    });
+}
+
+const dos = n => String(n).padStart(2, '0');
+
+async function prepararCaptura() {
+    if (document.activeElement) document.activeElement.blur();
+    document.documentElement.classList.add('ancho', 'capturando');
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+function terminarCaptura() {
+    document.documentElement.classList.remove('capturando');
+    actualizarAncho();
+}
 
 async function descargar() {
     const objetivo = $('.capturable');
     if (!objetivo) return;
     if (typeof htmlToImage === 'undefined') return aviso('No se ha cargado la librería de capturas (¿hay internet?)', true);
-    if (document.activeElement) document.activeElement.blur();
-
-    // Se pone en tamaño PC para que la captura salga igual desde el móvil
-    document.documentElement.classList.add('ancho', 'capturando');
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await prepararCaptura();
     try {
-        const url = await htmlToImage.toPng(objetivo, {
-            pixelRatio: 2,
-            backgroundColor: getComputedStyle(objetivo).backgroundColor || '#ffffff',
-            skipFonts: true,
-            filter: n => !(n.classList && n.classList.contains('no-captura'))
-        });
+        const blob = await capturar(objetivo);
         const ahora = new Date();
-        const dos = n => String(n).padStart(2, '0');
-        const tipo = objetivo.classList.contains('perfil') ? 'perfil' : 'tweet';
+        const tipo = objetivo.classList.contains('perfil') ? 'perfil'
+            : objetivo.classList.contains('home') ? 'inicio'
+            : objetivo.classList.contains('dm-chat') ? 'chat' : 'tweet';
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `${tipo}_${dos(ahora.getDate())}-${dos(ahora.getMonth() + 1)}_${dos(ahora.getHours())}-${dos(ahora.getMinutes())}-${dos(ahora.getSeconds())}.png`;
         document.body.appendChild(a);
         a.click();
         a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) {
         aviso('No se pudo hacer la captura: ' + (e && e.message ? e.message : e), true);
     } finally {
-        document.documentElement.classList.remove('capturando');
-        actualizarAncho();
+        terminarCaptura();
+    }
+}
+
+/* ---------- Descargar todos los tweets (uno por imagen, en un .zip) ---------- */
+
+// ZIP sin comprimir (los PNG ya van comprimidos), hecho aquí para no depender de nada de fuera
+const CRC_TABLA = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        t[n] = c >>> 0;
+    }
+    return t;
+})();
+
+function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLA[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function crearZip(archivos) {   // [{nombre, datos: Uint8Array}]
+    const ahora = new Date();
+    const hora = (ahora.getHours() << 11) | (ahora.getMinutes() << 5) | (ahora.getSeconds() >> 1);
+    const fecha = ((ahora.getFullYear() - 1980) << 9) | ((ahora.getMonth() + 1) << 5) | ahora.getDate();
+    const partes = [], central = [];
+    let posicion = 0;
+    for (const { nombre, datos } of archivos) {
+        const n = new TextEncoder().encode(nombre);
+        const crc = crc32(datos);
+        const cab = new DataView(new ArrayBuffer(30));
+        [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, hora, 2], [12, fecha, 2],
+         [14, crc, 4], [18, datos.length, 4], [22, datos.length, 4], [26, n.length, 2], [28, 0, 2]]
+            .forEach(([o, v, l]) => l === 4 ? cab.setUint32(o, v, true) : cab.setUint16(o, v, true));
+        const cen = new DataView(new ArrayBuffer(46));
+        [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, hora, 2], [14, fecha, 2],
+         [16, crc, 4], [20, datos.length, 4], [24, datos.length, 4], [28, n.length, 2], [30, 0, 2], [32, 0, 2],
+         [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, posicion, 4]]
+            .forEach(([o, v, l]) => l === 4 ? cen.setUint32(o, v, true) : cen.setUint16(o, v, true));
+        partes.push(cab, n, datos);
+        central.push(cen, n);
+        posicion += 30 + n.length + datos.length;
+    }
+    const tamCentral = central.reduce((s, x) => s + x.byteLength, 0);
+    const fin = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, archivos.length, 2], [10, archivos.length, 2],
+     [12, tamCentral, 4], [16, posicion, 4], [20, 0, 2]]
+        .forEach(([o, v, l]) => l === 4 ? fin.setUint32(o, v, true) : fin.setUint16(o, v, true));
+    return new Blob([...partes, ...central, fin], { type: 'application/zip' });
+}
+
+function progreso(texto) {
+    let el = $('#progreso');
+    if (!texto) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'progreso';
+        el.className = 'progreso';
+        el.innerHTML = '<div class="progreso-caja"><div class="progreso-rueda"></div><p></p></div>';
+        document.body.appendChild(el);
+    }
+    $('p', el).textContent = texto;
+}
+
+let descargandoTodos = false;
+
+async function descargarTodos() {
+    if (descargandoTodos) return;
+    if (typeof htmlToImage === 'undefined') return aviso('No se ha cargado la librería de capturas', true);
+    // Del más viejo al más nuevo, así el 001 es el primero que se hizo
+    const lista = tweets.filter(t => pj(t.autor_id)).sort((a, b) => a.orden - b.orden || a.id - b.id);
+    if (!lista.length) return aviso('Todavía no hay tweets', true);
+    if (!confirm(`Se va a hacer una imagen de cada tweet (${lista.length}) y se guardarán todas juntas en un .zip.\n\n¿Seguimos?`)) return;
+
+    descargandoTodos = true;
+    guardarTodoYa();
+    const vista = $('#vista');
+    const archivos = [];
+    await prepararCaptura();
+    try {
+        for (let i = 0; i < lista.length; i++) {
+            const t = lista[i];
+            progreso(`Haciendo las imágenes… ${i + 1} de ${lista.length}`);
+            vista.className = 'pag-tweet';
+            vista.innerHTML = vistaTweet(t);
+            $$('.ed', vista).forEach(pintarEditable);
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const blob = await capturar($('.capturable', vista));
+            const usuario = String(pj(t.autor_id).usuario).replace(/[^\p{L}\p{N}_-]/gu, '') || 'tweet';
+            archivos.push({ nombre: `tweet_${String(i + 1).padStart(3, '0')}_${usuario}.png`, datos: new Uint8Array(await blob.arrayBuffer()) });
+        }
+        progreso('Preparando el archivo…');
+        const hoy = new Date();
+        const zip = crearZip(archivos);
+        terminarCaptura();
+        progreso('');
+        pintarPagina();
+        if (await entregarArchivo(zip, `twt2015-tweets_${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}.zip`)) {
+            aviso(`${archivos.length} tweets descargados`);
+        }
+    } catch (e) {
+        aviso('No se pudieron hacer las imágenes: ' + (e && e.message ? e.message : e), true);
+    } finally {
+        descargandoTodos = false;
+        terminarCaptura();
+        progreso('');
+        pintarPagina();
     }
 }
 
@@ -1246,7 +1776,6 @@ async function exportarCopia() {
     try {
         const blob = await Almacen.exportar();
         const hoy = new Date();
-        const dos = n => String(n).padStart(2, '0');
         const nombre = `twt2015-copia_${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}.json`;
         if (await entregarArchivo(blob, nombre)) aviso('Copia lista');
     } catch (e) {
@@ -1265,6 +1794,7 @@ function importarCopia() {
         try {
             await Almacen.importar(f);
             await cargarTodo();
+            if (!app.tutorialVisto) { app.tutorialVisto = true; guardarApp(); }   // quien carga una copia ya conoce la app
             aviso('Copia cargada');
             location.hash = '#/perfiles';
             pintarPagina();
@@ -1326,6 +1856,119 @@ async function instalarApp() {
 }
 
 /* ---------------------------------------------------------------------
+   TUTORIAL (sale la primera vez; luego, con el botón "?" de arriba)
+   --------------------------------------------------------------------- */
+
+const chip = t => `<span class="chip">${t}</span>`;
+
+const PASOS_TUTORIAL = [
+    {
+        ico: '<span class="tuto-logo">twt</span>',
+        titulo: '¡Hola! Esto es twt2015',
+        texto: `<p>Aquí te inventas cuentas de Twitter con el aspecto de 2015 y les haces tweets, respuestas y mensajes directos. Luego lo descargas todo como imagen.</p>
+                <p>Lo que hagas se queda <b>solo en este móvil u ordenador</b>. Se guarda solo, no hay que darle a ningún botón.</p>`
+    },
+    {
+        ico: ICONO.seguir,
+        titulo: '1. Crea tus personajes',
+        texto: `<p>Ve a ${chip('Perfiles')} y toca ${chip('+ Nuevo personaje')}.</p>
+                <p>Le pones foto, nombre, @usuario, portada y color. También puedes marcarla como <b>verificada</b> ${ICONO.verificado} o <b>privada</b> ${ICONO.candado}.</p>
+                <p>Los números (seguidores, siguiendo…) los escribes tú. Si los dejas vacíos, se cuentan solos.</p>`
+    },
+    {
+        ico: '<span class="tuto-mirador"><span></span></span>',
+        titulo: '2. "Viendo como"',
+        texto: `<p>Arriba a la derecha eliges <b>desde qué cuenta miras</b> la app, como si tuvieras la sesión iniciada con ella.</p>
+                <p>Eso decide qué sale en ${chip('Inicio')} (los tweets de las cuentas que sigue), si en un perfil pone <b>Seguir</b> o <b>Siguiendo</b>, quién responde por defecto y quién eres tú en los mensajes.</p>`
+    },
+    {
+        ico: ICONO.reply,
+        titulo: '3. Haz un tweet',
+        texto: `<p>En ${chip('Inicio')} toca <b>¿Qué está pasando?</b>, o en un perfil toca ${chip('+ Tweet')}.</p>
+                <p>Dentro del tweet <b>todo se cambia tocándolo</b>: el texto, los números de RETWEETS y FAVORITOS, la fecha… Toca la foto o el nombre para cambiar quién lo ha escrito.</p>
+                <p>Con ${chip('+ Foto')} le pones una imagen.</p>`
+    },
+    {
+        ico: ICONO.fav,
+        titulo: '4. Las fotitos de favoritos',
+        texto: `<p>Al lado de RETWEETS y FAVORITOS salían las caritas de quienes le habían dado a favorito.</p>
+                <div class="tuto-demo"><span><small>RETWEETS</small><b>12</b></span><span><small>FAVORITOS</small><b>48</b></span><span class="tuto-caras"><i></i><i></i><i></i></span></div>
+                <p>Toca ${chip('+ fotitos')} para elegir qué perfiles salen ahí (hasta 9). Si eliges a la cuenta desde la que miras, la estrella sale amarilla.</p>`
+    },
+    {
+        ico: ICONO.retweet,
+        titulo: '5. Retwitteado por',
+        texto: `<p>En un tweet, toca ${chip('Retwitteado por…')} y elige quién lo ha retwitteado.</p>
+                <p>Saldrá <b>"Retwitteado por…"</b> encima del tweet, y el tweet aparecerá también en el perfil de esa gente (y en el inicio de quien las sigue).</p>
+                <p>Los tweets de cuentas privadas no se pueden retwittear, como en Twitter.</p>`
+    },
+    {
+        ico: ICONO.reply,
+        titulo: '6. Respuestas',
+        texto: `<p>Toca ${chip('+ Añadir respuesta')} debajo del tweet. Eliges quién responde, el texto, una foto y hace cuánto (1h, 2 min…).</p>
+                <p>Para responder a una respuesta (y hacer hilo), toca su flechita de responder.</p>
+                <p>Al lado de cada respuesta tienes ▲ ▼ para ordenarlas, 📷 para la foto y ✕ para borrarla.</p>`
+    },
+    {
+        ico: ICONO.sobre,
+        titulo: '7. Mensajes directos',
+        texto: `<p>En ${chip('Mensajes')} haces chats entre tus personajes: de dos, o de grupo (Twitter los estrenó en enero de 2015).</p>
+                <p>Con ${chip('Lo envía ⇄')} cambias quién escribe. ${chip('Ver como…')} decide quién eres tú: tus mensajes salen a la derecha y en tu color.</p>`
+    },
+    {
+        ico: ICONO.camara,
+        titulo: '8. Descárgalo como imagen',
+        texto: `<p>El botón azul ${chip('Descargar')} hace una imagen de lo que estás viendo: un tweet, un perfil, el inicio o un chat. Desde el móvil sale igual que en el ordenador.</p>
+                <p>En ${chip('Inicio')} tienes ${chip('Descargar todos')}: hace una imagen de cada tweet y te las da todas juntas en un .zip.</p>`
+    },
+    {
+        ico: ICONO.candadoGrande,
+        titulo: '9. Guarda una copia',
+        texto: `<p>Como todo está en este dispositivo, de vez en cuando ve a ${chip('Perfiles')} → <b>Tus datos</b> → ${chip('⬇ Guardar copia')}.</p>
+                <p>Ese archivo te sirve si cambias de móvil o se borra el navegador: lo cargas con ${chip('⬆ Cargar copia')}.</p>
+                <p>Y si quieres volver a ver esta guía, toca el <span class="chip chip-redondo">?</span> de arriba.</p>`
+    }
+];
+
+function abrirTutorial(primeraVez = false) {
+    let paso = 0;
+    if (!app.tutorialVisto) {
+        app.tutorialVisto = true;
+        guardarApp();
+    }
+    const pintar = () => {
+        const p = PASOS_TUTORIAL[paso];
+        const ultimo = paso === PASOS_TUTORIAL.length - 1;
+        $('#modal-cuerpo').innerHTML = `
+            <div class="tuto">
+                <div class="tuto-ico">${p.ico}</div>
+                <h3>${p.titulo}</h3>
+                <div class="tuto-texto">${p.texto}</div>
+                <div class="tuto-puntos">${PASOS_TUTORIAL.map((_, i) => `<button data-paso="${i}" class="${i === paso ? 'act' : ''}" aria-label="Paso ${i + 1}"></button>`).join('')}</div>
+                <div class="fila-btns">
+                    ${paso > 0 ? '<button class="btn btn-gris" data-tuto="atras">Anterior</button>' : '<button class="btn btn-gris" data-tuto="saltar">Saltar</button>'}
+                    <button class="btn" data-tuto="${ultimo ? 'fin' : 'siguiente'}">${ultimo ? (primeraVez ? '¡A empezar!' : 'Entendido') : 'Siguiente'}</button>
+                </div>
+            </div>`;
+        $('#modal-cuerpo').scrollTop = 0;
+    };
+    abrirModal('Cómo se usa', '', () => {
+        if (primeraVez && !personajes.length) formPersonaje();
+    });
+    pintar();
+    $('#modal-cuerpo').onclick = e => {
+        const punto = e.target.closest('[data-paso]');
+        if (punto) { paso = Number(punto.dataset.paso); return pintar(); }
+        const b = e.target.closest('[data-tuto]');
+        if (!b) return;
+        const que = b.dataset.tuto;
+        if (que === 'siguiente') { paso++; return pintar(); }
+        if (que === 'atras') { paso--; return pintar(); }
+        cerrarModal();
+    };
+}
+
+/* ---------------------------------------------------------------------
    NAVEGACIÓN
    --------------------------------------------------------------------- */
 
@@ -1340,6 +1983,7 @@ function pintarPagina() {
     const r = ruta();
     const vista = $('#vista');
     tweetActual = null;
+    chatActual = null;
     let html;
 
     if (r.pag === 'perfil' && pj(r.id)) {
@@ -1349,6 +1993,12 @@ function pintarPagina() {
     } else if (r.pag === 'tweet' && tweetPorId(r.id)) {
         html = vistaTweet(tweetPorId(r.id));
         vista.className = 'pag-tweet';
+    } else if (r.pag === 'chat' && chatPorId(r.id)) {
+        html = vistaChat(chatPorId(r.id));
+        vista.className = 'pag-chat';
+    } else if (r.pag === 'mensajes') {
+        html = vistaMensajes();
+        vista.className = 'pag-mensajes';
     } else if (r.pag === 'perfiles') {
         html = vistaPerfiles();
         vista.className = 'pag-perfiles';
@@ -1357,14 +2007,18 @@ function pintarPagina() {
         html = vistaInicio();
         vista.className = 'pag-inicio';
     }
-    const navAct = vista.className === 'pag-perfiles' ? 'perfiles' : vista.className === 'pag-inicio' ? 'inicio' : '';
+    const navAct = { 'pag-perfiles': 'perfiles', 'pag-inicio': 'inicio', 'pag-mensajes': 'mensajes', 'pag-chat': 'mensajes' }[vista.className] || '';
     $$('.topnav a').forEach(a => a.classList.toggle('act', a.dataset.pag === navAct));
     vista.innerHTML = html;
     $$('.ed', vista).forEach(pintarEditable);
     pintarMirador();
 
     const clave = location.hash;
-    if (clave !== rutaAnterior) window.scrollTo(0, 0);
+    if (clave !== rutaAnterior) {
+        // En un chat se empieza por abajo, como en Twitter (lo último es lo más nuevo)
+        if (vista.className === 'pag-chat') requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+        else window.scrollTo(0, 0);
+    }
     rutaAnterior = clave;
 }
 
@@ -1403,9 +2057,12 @@ document.addEventListener('click', async e => {
         case 'nuevo-personaje': return formPersonaje();
         case 'editar-perfil': return formPersonaje(Number(el.dataset.id));
         case 'descargar': return descargar();
+        case 'descargar-todos': return descargarTodos();
+        case 'nuevo-chat': return nuevoChat();
         case 'exportar': return exportarCopia();
         case 'importar': return importarCopia();
         case 'instalar': return instalarApp();
+        case 'tutorial': return abrirTutorial();
 
         case 'ir-perfil':
             e.stopPropagation();
@@ -1479,6 +2136,11 @@ document.addEventListener('click', async e => {
         }
     }
 
+    // ----- Acciones dentro de un chat -----
+    if (chatActual && (accion.startsWith('chat-') || accion === 'msg-opciones' || accion === 'borrar-chat')) {
+        return accionChat(accion, el, chatActual);
+    }
+
     // ----- Acciones dentro de un tweet -----
     if (!t) return;
     const respEl = el.closest('.resp');
@@ -1506,8 +2168,8 @@ document.addEventListener('click', async e => {
                 t.datos.rtPor = sel;
                 guardarTweet(t);
                 pintarPagina();
-                aviso(sel.length ? 'Saldrá en sus perfiles como "Retwitteado por"' : 'Ya no sale como retweet');
-            }, { excluir: [t.autor_id], texto: 'Este tweet saldrá en sus perfiles con "Retwitteado por…".' });
+                aviso(sel.length ? 'Sale encima del tweet y en sus perfiles' : 'Ya no sale como retweet');
+            }, { excluir: [t.autor_id], texto: 'Saldrá "Retwitteado por…" encima del tweet, y el tweet aparecerá también en sus perfiles.' });
 
         case 'foto-tweet':
             if (t.datos.imagen) {
@@ -1613,7 +2275,9 @@ document.addEventListener('visibilitychange', async () => {
         aviso(e.message, true);
     }
     pintarPagina();
-    if (!personajes.length) formPersonaje();
+    // La primera vez sale la guía (también a quien ya usaba la app antes de que existiera)
+    if (!app.tutorialVisto) abrirTutorial(true);
+    else if (!personajes.length) formPersonaje();
     Almacen.pedirPersistencia();
     prepararInstalacion();
 })();

@@ -1,6 +1,11 @@
 # twt2015
 
-Crea perfiles y tweets falsos con el estilo de Twitter en 2015, y descárgalos como imagen.
+Crea perfiles, tweets y mensajes directos falsos con el estilo de Twitter en 2015, y descárgalos como imagen.
+
+- Tweets con respuestas, fotos, "Retwitteado por" y las fotitos de quien le dio a favorito
+- Mensajes directos entre tus personajes, de dos o en grupo
+- Descarga de cualquier pantalla como PNG, o de todos los tweets de golpe (un .zip con una imagen por tweet)
+- Guía de uso la primera vez que se abre (y luego en el botón **?** de arriba)
 
 Es una app web instalable (PWA): no necesita servidor, ni PHP, ni base de datos.
 Todo lo que creas se guarda **en tu propio móvil u ordenador** (IndexedDB), y funciona también sin internet.

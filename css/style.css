@@ -401,3 +401,145 @@ html.capturando .ed:hover, html.capturando .ti:hover { background: none; }
     .topbar-in:has(.instalar:not([hidden])) .mirador-txt { display: none; }
     .topbar-in:has(.instalar:not([hidden])) .mirador { padding-left: 4px; }
 }
+
+/* ---------- "Retwitteado por" encima del tweet ---------- */
+.tw-rt { display: flex; align-items: center; gap: 6px; color: var(--gris); font-size: 13px; margin: -6px 0 10px; }
+.tw-rt .icono { font-size: 15px; }
+.tw-rt .rt-nom { cursor: pointer; }
+.tw-rt .rt-nom:hover { text-decoration: underline; }
+html.ancho .tw-rt { margin: -10px 0 12px; }
+
+/* ---------- Descargar todos ---------- */
+.copia .copia-sep { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--borde); }
+.progreso { position: fixed; inset: 0; z-index: 300; background: rgba(245, 248, 250, .96); display: flex; align-items: center; justify-content: center; }
+.progreso-caja { text-align: center; color: var(--gris-osc); font-weight: bold; font-size: 15px; }
+.progreso-rueda { width: 34px; height: 34px; margin: 0 auto 12px; border: 3px solid var(--borde); border-top-color: var(--azul); border-radius: 50%; animation: girar .8s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* ---------- Botón "?" (tutorial) ---------- */
+.btn-tuto { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--borde); background: #fff; color: var(--azul); font-weight: bold; font-size: 16px; padding: 0; line-height: 1; }
+.btn-tuto:hover { background: #e8f5fd; }
+
+/* ---------- Tutorial ---------- */
+.tuto { text-align: center; }
+.tuto-ico { width: 64px; height: 64px; margin: 4px auto 10px; border-radius: 50%; background: #e8f5fd; color: var(--azul); display: flex; align-items: center; justify-content: center; }
+.tuto-ico > svg { width: 32px; height: 32px; }
+.tuto-ico .ico-verif { width: 32px; height: 32px; margin: 0; }
+.tuto-logo { font-weight: bold; font-size: 18px; letter-spacing: -.02em; }
+.tuto-mirador { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--azul); display: flex; align-items: center; justify-content: center; }
+.tuto-mirador span { width: 14px; height: 14px; border-radius: 50%; background: var(--azul); }
+.tuto h3 { margin: 0 0 10px; font-size: 19px; }
+.tuto-texto { text-align: left; font-size: 15px; line-height: 1.5; color: var(--texto); }
+.tuto-texto p { margin: 0 0 10px; }
+.tuto-texto .ico-verif, .tuto-texto .ico-candado { vertical-align: -.1em; }
+.chip { display: inline-block; padding: 1px 8px; border: 1px solid var(--borde); border-radius: 4px; background: var(--fondo); font-weight: bold; font-size: 13px; white-space: nowrap; color: var(--gris-osc); }
+.chip-redondo { border-radius: 50%; padding: 1px 7px; color: var(--azul); background: #fff; }
+.tuto-demo { display: flex; align-items: center; gap: 14px; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 8px 2px; margin: 0 0 10px; }
+.tuto-demo span { display: block; }
+.tuto-demo small { display: block; font-size: 10px; color: var(--gris); }
+.tuto-demo b { color: var(--azul); font-size: 16px; }
+.tuto-caras { display: flex !important; gap: 2px; border-left: 1px solid #eee; padding-left: 12px; }
+.tuto-caras i { width: 22px; height: 22px; border-radius: 4px; background: #ccd6dd; }
+.tuto-caras i:nth-child(2) { background: #f58ea8; }
+.tuto-caras i:nth-child(3) { background: #fab81e; }
+.tuto-puntos { display: flex; justify-content: center; gap: 6px; margin: 14px 0 0; }
+.tuto-puntos button { width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; background: var(--borde); }
+.tuto-puntos button.act { background: var(--azul); }
+
+/* ---------- MENSAJES DIRECTOS ---------- */
+.barra-dm { max-width: 600px; align-items: center; }
+.dm { max-width: 600px; margin: 0 auto; }
+.dm-tit { padding: 14px 16px; border-bottom: 1px solid var(--borde); }
+.dm-tit h2 { margin: 0; font-size: 18px; }
+.dm-vacio-ico { font-size: 40px; color: var(--gris); }
+.vacio-tl p { margin: 8px 0 14px; }
+.dm-fila { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--borde); }
+.dm-fila:last-child { border-bottom: none; }
+.dm-fila:hover { background: var(--fondo); }
+.dm-fila-av { width: 48px; height: 48px; }
+.dm-fila-info { flex: 1; min-width: 0; }
+.dm-fila-cab { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; overflow: hidden; }
+.dm-fila-cab b { overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+.dm-fila-cab .handle { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dm-fila-hora { margin-left: auto; font-size: 13px; flex-shrink: 0; }
+.dm-fila-txt { color: var(--gris-osc); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-fila-yo { font-size: 11px; color: #b8c4cc; margin-top: 3px; }
+/* Avatar de grupo: hasta 4 caritas en un cuadrado */
+.av-grupo { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; overflow: hidden; background: #fff; }
+.av-grupo span { background: #e1e8ed center / cover; }
+.av-grupo span:only-child, .av-grupo span:first-child:nth-last-child(2), .av-grupo span:first-child:nth-last-child(2) ~ span { grid-row: span 2; }
+.av-grupo span:first-child:nth-last-child(3) { grid-row: span 2; }
+
+.pag-chat .barra-pag { max-width: 600px; }
+.dm-chat { max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid var(--borde); border-radius: 6px; overflow: hidden; }
+.dm-chat-cab { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--borde); }
+.dm-volver { font-size: 30px; line-height: 20px; color: var(--azul); margin-right: 2px; }
+.dm-cab-av { width: 36px; height: 36px; border-radius: 50%; }
+.dm-cab-nombres { min-width: 0; flex: 1; }
+.dm-cab-nombres b, .dm-cab-nombres .handle { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-cab-nombres b { font-size: 16px; }
+.dm-cab-nombres .handle { font-size: 13px; }
+
+.dm-msgs { padding: 16px 14px 10px; min-height: 120px; }
+.dm-sin { text-align: center; color: var(--gris); padding: 30px 0; }
+.dm-m { display: flex; align-items: flex-end; gap: 8px; margin-top: 3px; }
+.dm-m.tanda-ini { margin-top: 12px; }
+.dm-m:first-child { margin-top: 0; }
+.dm-m.mio { flex-direction: row-reverse; }
+.dm-m-av { width: 32px; flex-shrink: 0; align-self: flex-end; }
+.dm-m-av .av { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; }
+.dm-m.otro:has(.dm-hora:not(:empty)) .dm-m-av { margin-bottom: 19px; }
+.dm-m-col { max-width: 75%; min-width: 0; display: flex; flex-direction: column; }
+.dm-m.mio .dm-m-col { align-items: flex-end; }
+.dm-quien { font-size: 12px; color: var(--gris); margin: 0 0 3px 4px; }
+.dm-burbuja { padding: 9px 13px; border-radius: 18px; font-size: 15px; line-height: 1.35; word-wrap: break-word; overflow: hidden; }
+.dm-m.otro .dm-burbuja { background: #e6ecf0; color: var(--texto); }
+.dm-m.mio .dm-burbuja { background: var(--tema); color: #fff; }
+/* La esquina del lado de quien habla, más recta en la última burbuja de cada tanda */
+.dm-m.otro.tanda-fin .dm-burbuja { border-bottom-left-radius: 4px; }
+.dm-m.mio.tanda-fin .dm-burbuja { border-bottom-right-radius: 4px; }
+.dm-burbuja .dm-txt { display: block; min-width: 1ch; white-space: pre-wrap; }
+.dm-m.mio .enlace { color: #fff; text-decoration: underline; }
+.dm-m.mio .ed:empty::before { color: rgba(255, 255, 255, .7); }
+.dm-m.mio .ed:hover { background: rgba(255, 255, 255, .12); }
+.dm-m.mio .ed.editando { box-shadow: 0 0 0 2px rgba(255, 255, 255, .7); }
+.dm-burbuja.con-foto { padding: 0; }
+.dm-burbuja.con-foto img { display: block; max-width: 100%; max-height: 320px; object-fit: cover; }
+.dm-burbuja.con-foto .dm-txt { padding: 9px 13px; }
+.dm-burbuja.solo-foto .dm-txt:empty { display: none; }
+.dm-hora { font-size: 12px; color: var(--gris); margin: 4px 4px 0; min-width: 2em; }
+.dm-hora:empty:not(.editando) { display: none; }
+.dm-mas { align-self: center; width: 30px; height: 30px; border: none; background: none; color: #ccd6dd; padding: 4px; flex-shrink: 0; border-radius: 50%; }
+.dm-mas:hover { color: var(--gris); background: var(--fondo); }
+.dm-mas svg { width: 100%; height: 100%; }
+
+.dm-pie { border-top: 1px solid var(--borde); background: var(--fondo); padding: 10px 14px; }
+.dm-pie-falso { display: none; background: #fff; border: 1px solid var(--borde); border-radius: 18px; padding: 9px 14px; color: var(--gris); font-size: 15px; }
+.dm-escribir textarea { width: 100%; font: inherit; font-size: 16px; padding: 9px 12px; border: 1px solid var(--borde); border-radius: 8px; resize: vertical; margin-top: 8px; display: block; }
+.dm-escribir-fila { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.dm-escribir-fila input { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 7px 10px; border: 1px solid var(--borde); border-radius: 4px; }
+.dm-enviar { padding: 9px 18px; background: var(--tema); }
+.dm-envia { display: flex; align-items: center; gap: 8px; border: 1px solid var(--borde); background: #fff; border-radius: 22px; padding: 4px 12px 4px 4px; max-width: 100%; }
+.dm-envia .av { width: 30px; height: 30px; border-radius: 50%; }
+.dm-envia-txt { text-align: left; min-width: 0; line-height: 1.15; }
+.dm-envia-txt small { display: block; font-size: 11px; color: var(--gris); }
+.dm-envia-txt b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-envia-cambiar { color: var(--azul); font-weight: bold; margin-left: 4px; }
+
+/* Opciones de un mensaje */
+.opciones { display: flex; flex-direction: column; gap: 6px; }
+.opciones button { text-align: left; border: 1px solid var(--borde); background: #fff; border-radius: 6px; padding: 12px 14px; font-size: 15px; }
+.opciones button:disabled { opacity: .4; cursor: default; }
+.opciones .rojo { color: var(--rojo); }
+
+html.ancho .dm-msgs { padding: 20px 20px 12px; }
+html.capturando .dm-chat.capturable { width: 600px; max-width: none; }
+html.capturando .dm-pie-falso { display: block; }
+
+/* Barra superior en móviles estrechos: con "Mensajes" y "?" hay menos sitio */
+@media (max-width: 480px) {
+    .topbar-in { gap: 6px; padding-left: 6px; padding-right: 8px; }
+    .topnav a { padding: 8px 5px; font-size: 13px; }
+    .mirador-txt { display: none; }
+    .mirador { padding-left: 4px; }
+}

@@ -14,11 +14,12 @@
      tweets      → {id, autor_id, orden, datos}
      ajustes     → {clave, valor}
      imagenes    → {nombre, blob}   (lo que antes era la carpeta uploads)
+     chats       → {id, miembros, yo, mensajes, actualizado}   (mensajes directos)
    ===================================================================== */
 
 const Almacen = (() => {
     const NOMBRE_BD = 'twt2015';
-    const VERSION_BD = 1;
+    const VERSION_BD = 2;   // 2: se añaden los chats
     const CAMPOS_TEXTO = { bio: 400, ubicacion: 100, web: 200, union_fecha: 60, n_tweets: 20, n_siguiendo: 20, n_seguidores: 20, n_favoritos: 20 };
 
     let bd = null;
@@ -37,8 +38,14 @@ const Almacen = (() => {
                 if (!b.objectStoreNames.contains('tweets')) b.createObjectStore('tweets', { keyPath: 'id', autoIncrement: true });
                 if (!b.objectStoreNames.contains('ajustes')) b.createObjectStore('ajustes', { keyPath: 'clave' });
                 if (!b.objectStoreNames.contains('imagenes')) b.createObjectStore('imagenes', { keyPath: 'nombre' });
+                if (!b.objectStoreNames.contains('chats')) b.createObjectStore('chats', { keyPath: 'id', autoIncrement: true });
             };
-            pet.onsuccess = () => { bd = pet.result; ok(bd); };
+            pet.onsuccess = () => {
+                bd = pet.result;
+                // Si se abre una versión más nueva de la app en otra pestaña, esta le deja paso
+                bd.onversionchange = () => { bd.close(); bd = null; };
+                ok(bd);
+            };
             pet.onerror = () => mal(new Error('No se ha podido abrir el almacén de datos (¿modo incógnito?).'));
             pet.onblocked = () => mal(new Error('Cierra las otras pestañas de la app y vuelve a abrirla.'));
         });
@@ -112,8 +119,9 @@ const Almacen = (() => {
     const urlImagen = nombre => (nombre && urls.get(nombre)) || '';
 
     // Nombres de las imágenes que algún personaje o tweet sigue usando
-    function imagenesEnUso(personajes, tweets) {
+    function imagenesEnUso(personajes, tweets, chats = []) {
         const usadas = new Set();
+        chats.forEach(c => (c.mensajes || []).forEach(m => { if (m.imagen) usadas.add(m.imagen); }));
         personajes.forEach(p => { if (p.foto) usadas.add(p.foto); if (p.portada) usadas.add(p.portada); });
         tweets.forEach(t => {
             if (t.datos?.imagen) usadas.add(t.datos.imagen);
@@ -124,8 +132,8 @@ const Almacen = (() => {
 
     // Al arrancar, borra las fotos que ya no usa nadie (p. ej. al "Quitar foto" de un tweet)
     async function limpiarHuerfanas() {
-        const [personajes, tweets] = await Promise.all([todos('personajes'), todos('tweets')]);
-        const usadas = imagenesEnUso(personajes, tweets);
+        const [personajes, tweets, chats] = await Promise.all([todos('personajes'), todos('tweets'), todos('chats')]);
+        const usadas = imagenesEnUso(personajes, tweets, chats);
         const nombres = await transaccion(['imagenes'], 'readonly', tx => promesa(tx.objectStore('imagenes').getAllKeys()));
         const sobran = nombres.filter(n => !usadas.has(n));
         if (sobran.length) await transaccion(['imagenes'], 'readwrite', tx => sobran.forEach(n => borrarImagenEn(tx, n)));
@@ -264,6 +272,55 @@ const Almacen = (() => {
         error('Acción desconocida.');
     }
 
+    /* ---------- chats.php (mensajes directos) ---------- */
+
+    async function listarChats() {
+        const lista = await todos('chats');
+        return lista.sort((a, b) => String(b.actualizado).localeCompare(String(a.actualizado)) || b.id - a.id);
+    }
+
+    async function chatsPOST(p) {
+        const accion = p.accion || '';
+
+        if (accion === 'crear') {
+            const miembros = (p.miembros || []).map(Number).filter(n => n > 0);
+            if (miembros.length < 2) error('Un chat necesita al menos dos personas.');
+            const chat = await transaccion(['chats'], 'readwrite', async tx => {
+                const fila = { miembros, yo: Number(p.yo) || miembros[0], mensajes: [], actualizado: new Date().toISOString() };
+                fila.id = await promesa(tx.objectStore('chats').add(fila));
+                return fila;
+            });
+            return { chat };
+        }
+
+        if (accion === 'guardar') {
+            await transaccion(['chats'], 'readwrite', async tx => {
+                const st = tx.objectStore('chats');
+                const fila = await promesa(st.get(Number(p.id)));
+                if (!fila) return;   // ya estaba borrado
+                fila.miembros = (p.miembros || fila.miembros).map(Number);
+                fila.yo = Number(p.yo) || fila.yo;
+                fila.mensajes = Array.isArray(p.mensajes) ? p.mensajes : fila.mensajes;
+                fila.actualizado = new Date().toISOString();
+                st.put(fila);
+            });
+            return { ok: true };
+        }
+
+        if (accion === 'borrar') {
+            await transaccion(['chats', 'imagenes'], 'readwrite', async tx => {
+                const st = tx.objectStore('chats');
+                const fila = await promesa(st.get(Number(p.id)));
+                if (!fila) return;
+                (fila.mensajes || []).forEach(m => borrarImagenEn(tx, m.imagen));
+                st.delete(fila.id);
+            });
+            return { ok: true };
+        }
+
+        error('Acción desconocida.');
+    }
+
     /* ---------- ajustes.php ---------- */
 
     async function leerAjuste(clave) {
@@ -288,6 +345,9 @@ const Almacen = (() => {
         }
         if (archivo === 'tweets.php') {
             return metodo === 'GET' ? { tweets: await listarTweets() } : tweetsPOST(json());
+        }
+        if (archivo === 'chats.php') {
+            return metodo === 'GET' ? { chats: await listarChats() } : chatsPOST(json());
         }
         if (archivo === 'ajustes.php') {
             if (metodo === 'GET') return { app: await leerAjuste('app') };
@@ -322,13 +382,13 @@ const Almacen = (() => {
 
     // Todo en un único archivo .json (las fotos van dentro como texto)
     async function exportar() {
-        const [personajes, tweets, app, imagenes] = await Promise.all([todos('personajes'), todos('tweets'), leerAjuste('app'), todos('imagenes')]);
-        const usadas = imagenesEnUso(personajes, tweets);
+        const [personajes, tweets, app, imagenes, chats] = await Promise.all([todos('personajes'), todos('tweets'), leerAjuste('app'), todos('imagenes'), todos('chats')]);
+        const usadas = imagenesEnUso(personajes, tweets, chats);
         const fotos = {};
         for (const { nombre, blob } of imagenes) {
             if (usadas.has(nombre)) fotos[nombre] = await blobADataURL(blob);
         }
-        const copia = { formato: 'twt2015-copia', version: 1, fecha: new Date().toISOString(), personajes, tweets, app, imagenes: fotos };
+        const copia = { formato: 'twt2015-copia', version: 2, fecha: new Date().toISOString(), personajes, tweets, chats, app, imagenes: fotos };
         return new Blob([JSON.stringify(copia)], { type: 'application/json' });
     }
 
@@ -342,11 +402,14 @@ const Almacen = (() => {
         const fotos = [];
         for (const [nombre, dataURL] of Object.entries(copia.imagenes || {})) fotos.push({ nombre, blob: await dataURLABlob(dataURL) });
 
-        await transaccion(['personajes', 'tweets', 'ajustes', 'imagenes'], 'readwrite', tx => {
-            ['personajes', 'tweets', 'imagenes'].forEach(n => tx.objectStore(n).clear());
+        // Las copias antiguas (versión 1) no traen chats: se quedan sin chats
+        const chats = Array.isArray(copia.chats) ? copia.chats : [];
+        await transaccion(['personajes', 'tweets', 'ajustes', 'imagenes', 'chats'], 'readwrite', tx => {
+            ['personajes', 'tweets', 'imagenes', 'chats'].forEach(n => tx.objectStore(n).clear());
             tx.objectStore('ajustes').delete('app');
             copia.personajes.forEach(p => { if (Number(p.id) > 0) tx.objectStore('personajes').put({ ...p, id: Number(p.id) }); });
             copia.tweets.forEach(t => { if (Number(t.id) > 0) tx.objectStore('tweets').put({ ...t, id: Number(t.id), autor_id: Number(t.autor_id) }); });
+            chats.forEach(c => { if (Number(c.id) > 0) tx.objectStore('chats').put({ ...c, id: Number(c.id), miembros: (c.miembros || []).map(Number) }); });
             fotos.forEach(f => tx.objectStore('imagenes').put(f));
             if (copia.app) tx.objectStore('ajustes').put({ clave: 'app', valor: copia.app });
         });
