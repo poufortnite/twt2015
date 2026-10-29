@@ -5,7 +5,7 @@
    Páginas:  #/                 inicio (todos los perfiles)
              #/perfil/ID[/tab]  perfil (tab: respuestas | fotos)
              #/tweet/ID         un tweet con sus respuestas
-   Todo se guarda solo en la base de datos.
+   Todo se guarda solo, en este mismo dispositivo (ver almacen.js).
    ===================================================================== */
 
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
@@ -103,7 +103,8 @@ function textoHTML(raw) {
     );
 }
 
-const urlImg = nombre => nombre ? 'uploads/' + encodeURIComponent(nombre) : '';
+// Las fotos están guardadas en el dispositivo: Almacen da una URL temporal para cada una
+const urlImg = nombre => Almacen.urlImagen(nombre);
 const fondo = url => url ? `style="background-image:url('${url}')"` : '';
 const fondoPj = p => fondo(p ? urlImg(p.foto) : '');
 
@@ -134,16 +135,9 @@ function aviso(texto, error = false) {
     tAviso = setTimeout(() => { el.hidden = true; }, error ? 5000 : 2200);
 }
 
+// Antes llamaba al PHP con fetch('api/...'); ahora lo resuelve almacen.js en el propio dispositivo
 async function api(url, opciones = {}) {
-    const r = await fetch('api/' + url, opciones);
-    let datos;
-    try {
-        datos = await r.json();
-    } catch {
-        throw new Error('El servidor ha respondido algo raro (' + r.status + ').');
-    }
-    if (!r.ok || datos.error) throw new Error(datos.error || 'Error ' + r.status);
-    return datos;
+    return Almacen.apiLocal(url, opciones);
 }
 
 const apiJSON = (url, cuerpo) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
@@ -252,22 +246,23 @@ function guardarApp() {
     }, 400);
 }
 
-// Al cerrar la pestaña o cambiar de app, se manda lo que quede pendiente
+// Al cerrar la pestaña o cambiar de app, se guarda ya lo que quede pendiente
 function guardarTodoYa() {
     for (const [id, tm] of temporizadores) {
         clearTimeout(tm);
         const t = tweetPorId(id);
-        if (t) navigator.sendBeacon('api/tweets.php', new Blob([JSON.stringify({ accion: 'guardar', id: t.id, autor_id: t.autor_id, datos: t.datos })], { type: 'application/json' }));
+        if (t) apiJSON('tweets.php', { accion: 'guardar', id: t.id, autor_id: t.autor_id, datos: t.datos }).catch(() => {});
     }
     temporizadores.clear();
     if (guardandoApp) {
         clearTimeout(tApp);
-        navigator.sendBeacon('api/ajustes.php', new Blob([JSON.stringify(app)], { type: 'application/json' }));
+        apiJSON('ajustes.php', app).catch(() => {});
         guardandoApp = false;
     }
 }
 
 async function cargarTodo() {
+    await Almacen.cargarImagenes();
     const [p, t, a] = await Promise.all([api('personajes.php'), api('tweets.php'), api('ajustes.php')]);
     personajes = p.personajes;
     tweets = t.tweets.map(normalizarTweet);
@@ -376,6 +371,15 @@ function vistaPerfiles() {
                 <span class="mas">+</span>
                 <span>Nuevo personaje</span>
             </button>
+        </div>
+
+        <div class="caja copia no-captura">
+            <h3>Tus datos</h3>
+            <p>Todo se guarda solo en este dispositivo. Haz una copia de vez en cuando: te sirve si cambias de móvil o si se borran los datos del navegador.</p>
+            <div class="fila-btns fila-izq">
+                <button class="mini-btn" data-accion="exportar">⬇ Guardar copia</button>
+                <button class="mini-btn" data-accion="importar">⬆ Cargar copia</button>
+            </div>
         </div>
     </div>`;
 }
@@ -1211,6 +1215,117 @@ async function descargar() {
 }
 
 /* ---------------------------------------------------------------------
+   COPIA DE SEGURIDAD
+   --------------------------------------------------------------------- */
+
+// En el móvil se abre el menú de compartir (Archivos, Drive, WhatsApp…); en el PC se descarga
+async function entregarArchivo(blob, nombre) {
+    const archivo = new File([blob], nombre, { type: blob.type });
+    const movil = matchMedia('(pointer: coarse)').matches;
+    if (movil && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+        try {
+            await navigator.share({ files: [archivo], title: nombre });
+            return true;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return false;
+        }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return true;
+}
+
+async function exportarCopia() {
+    guardarTodoYa();
+    try {
+        const blob = await Almacen.exportar();
+        const hoy = new Date();
+        const dos = n => String(n).padStart(2, '0');
+        const nombre = `twt2015-copia_${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}.json`;
+        if (await entregarArchivo(blob, nombre)) aviso('Copia lista');
+    } catch (e) {
+        aviso('No se pudo hacer la copia: ' + e.message, true);
+    }
+}
+
+function importarCopia() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = async () => {
+        const f = input.files[0];
+        if (!f) return;
+        if (personajes.length && !confirm('Se va a sustituir TODO lo que hay ahora en este dispositivo por lo que trae la copia.\n\n¿Seguro?')) return;
+        try {
+            await Almacen.importar(f);
+            await cargarTodo();
+            aviso('Copia cargada');
+            location.hash = '#/perfiles';
+            pintarPagina();
+        } catch (e) {
+            aviso(e.message, true);
+        }
+    };
+    input.click();
+}
+
+/* ---------------------------------------------------------------------
+   INSTALAR COMO APP
+   --------------------------------------------------------------------- */
+
+let avisoInstalar = null;   // lo que da Chrome/Edge para enseñar su ventana de "Instalar"
+
+const yaInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function prepararInstalacion() {
+    // Guarda los archivos de la app para que abra aunque no haya internet
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+    const boton = $('#btn-instalar');
+    if (yaInstalada()) return;
+    if (esIOS()) boton.hidden = false;   // en iPhone no hay ventana automática: se explica cómo
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        avisoInstalar = e;
+        boton.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+        boton.hidden = true;
+        avisoInstalar = null;
+        aviso('¡App instalada!');
+    });
+}
+
+async function instalarApp() {
+    if (avisoInstalar) {
+        avisoInstalar.prompt();
+        await avisoInstalar.userChoice;
+        avisoInstalar = null;
+        $('#btn-instalar').hidden = true;
+        return;
+    }
+    abrirModal('Instalar la app', esIOS() ? `
+        <ol class="pasos">
+            <li>Ábrela en <b>Safari</b> (en otros navegadores del iPhone puede no salir).</li>
+            <li>Toca el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba).</li>
+            <li>Elige <b>Añadir a pantalla de inicio</b> y luego <b>Añadir</b>.</li>
+        </ol>
+        <p class="gris">Te saldrá el icono en el móvil como cualquier otra app.</p>` : `
+        <ol class="pasos">
+            <li>Abre el menú del navegador (los tres puntos ⋮).</li>
+            <li>Toca <b>Instalar app</b> o <b>Añadir a pantalla de inicio</b>.</li>
+        </ol>`);
+}
+
+/* ---------------------------------------------------------------------
    NAVEGACIÓN
    --------------------------------------------------------------------- */
 
@@ -1288,6 +1403,9 @@ document.addEventListener('click', async e => {
         case 'nuevo-personaje': return formPersonaje();
         case 'editar-perfil': return formPersonaje(Number(el.dataset.id));
         case 'descargar': return descargar();
+        case 'exportar': return exportarCopia();
+        case 'importar': return importarCopia();
+        case 'instalar': return instalarApp();
 
         case 'ir-perfil':
             e.stopPropagation();
@@ -1470,14 +1588,14 @@ window.addEventListener('hashchange', () => {
 window.addEventListener('resize', actualizarAncho);
 window.addEventListener('pagehide', guardarTodoYa);
 
-// Al volver a la pestaña, recargar por si se ha cambiado algo desde otro dispositivo
+// Al volver a la pestaña, recargar por si se ha cambiado algo desde otra pestaña
 document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState === 'hidden') return guardarTodoYa();
     if (hayPendientes() || !$('#modal').hidden || document.activeElement?.isContentEditable) return;
     try {
         await cargarTodo();
         pintarPagina();
-    } catch { /* sin conexión: seguimos con lo que hay */ }
+    } catch { /* seguimos con lo que hay */ }
 });
 
 /* ---------------------------------------------------------------------
@@ -1487,12 +1605,15 @@ document.addEventListener('visibilitychange', async () => {
 (async function iniciar() {
     actualizarAncho();
     try {
+        await Almacen.limpiarHuerfanas();
         await cargarTodo();
         marcarGuardado('Guardado');
     } catch (e) {
-        marcarGuardado('Sin conexión con la base de datos', true);
+        marcarGuardado('No se pueden guardar datos', true);
         aviso(e.message, true);
     }
     pintarPagina();
     if (!personajes.length) formPersonaje();
+    Almacen.pedirPersistencia();
+    prepararInstalacion();
 })();

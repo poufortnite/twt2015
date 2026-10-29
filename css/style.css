@@ -387,3 +387,17 @@ html.capturando .home.capturable { width: 1190px; max-width: none; }
 html.capturando .no-captura { display: none !important; }
 html.capturando .ed:empty::before { content: none; }
 html.capturando .ed:hover, html.capturando .ti:hover { background: none; }
+
+/* ---------- App instalable y copia de seguridad ---------- */
+.instalar { border: none; background: var(--azul); color: #fff; font-weight: bold; font-size: 13px; border-radius: 20px; padding: 7px 12px; white-space: nowrap; }
+.copia { margin-top: 18px; padding: 14px 16px; }
+.copia h3 { margin: 0 0 6px; font-size: 16px; }
+.copia p { margin: 0; color: var(--gris-osc); font-size: 13px; line-height: 1.45; }
+.copia .fila-btns { margin-top: 12px; flex-wrap: wrap; }
+.pasos { margin: 0 0 12px; padding-left: 20px; line-height: 1.6; font-size: 15px; }
+.topbar { padding-top: env(safe-area-inset-top); }
+@media (max-width: 420px) {
+    /* Si sale "Instalar", en móviles estrechos el selector de cuenta queda solo con la foto */
+    .topbar-in:has(.instalar:not([hidden])) .mirador-txt { display: none; }
+    .topbar-in:has(.instalar:not([hidden])) .mirador { padding-left: 4px; }
+}

@@ -1,105 +1,38 @@
-# Twitter 2015
+# twt2015
 
-Recreación del Twitter de 2015 para crear perfiles y tweets inventados (con respuestas, retweets, favoritos e imágenes).
+Crea perfiles y tweets falsos con el estilo de Twitter en 2015, y descárgalos como imagen.
 
-Hecho con HTML, CSS y JavaScript en el navegador, y PHP + MariaDB/MySQL en el servidor.
+Es una app web instalable (PWA): no necesita servidor, ni PHP, ni base de datos.
+Todo lo que creas se guarda **en tu propio móvil u ordenador** (IndexedDB), y funciona también sin internet.
 
-## Requisitos
+## Cómo usarla
 
-- Apache con PHP 8 (por ejemplo XAMPP)
-- MariaDB 10.3 o superior (o MySQL 8)
+1. Abre el enlace: **https://poufortnite.github.io/twt2015/**
+2. Instálala:
+   - **Android / PC (Chrome o Edge):** botón **Instalar** arriba, o menú ⋮ → *Instalar app*.
+   - **iPhone:** ábrela en **Safari** → botón Compartir → *Añadir a pantalla de inicio*.
+3. Crea tu primer personaje y a twittear.
 
-## Instalación
+Tus datos no salen de tu dispositivo. En **Perfiles → Tus datos** puedes guardar una copia
+(un archivo `.json`) y cargarla en otro móvil.
 
-1. Copia la carpeta del proyecto en la carpeta web de Apache (en XAMPP, `htdocs/twt2015`).
-2. Comprueba que Apache puede escribir en la carpeta `uploads/`.
-3. Configura la conexión a la base de datos:
-   - Si usas XAMPP tal cual (usuario `root` sin contraseña), no tienes que hacer nada.
-   - Si tu MariaDB/MySQL tiene otro usuario o contraseña, copia `api/config.example.php` como `api/config.php` y pon tus datos:
+## Cómo está hecha
 
-     ```php
-     const DB_HOST = 'localhost';
-     const DB_USER = 'tu_usuario';
-     const DB_PASS = 'tu_contraseña';
-     const DB_NAME = 'twt2015';
-     ```
+| Archivo | Qué hace |
+|---|---|
+| `index.html` | La página |
+| `css/style.css` | Los estilos |
+| `js/app.js` | Toda la app (vistas, edición, capturas) |
+| `js/almacen.js` | Guarda los datos en el dispositivo con IndexedDB. Sustituye a la antigua carpeta `api/` en PHP |
+| `js/html-to-image.js` | Librería para hacer las capturas PNG |
+| `manifest.json` | Nombre, icono y colores de la app instalada |
+| `sw.js` | Service worker: guarda los archivos para que abra sin internet |
+| `iconos/` | Iconos de la app |
 
-     `config.php` está en el `.gitignore`, así que tu contraseña nunca se sube a GitHub.
-     El usuario necesita permiso para crear la base de datos `twt2015` (o créala tú antes y dale permisos sobre ella).
+## Publicar cambios
 
-4. Abre `http://localhost/twt2015/` en el navegador.
+Cada vez que subes cambios a la rama `main`, GitHub Pages actualiza la web en uno o dos minutos
+y a quien la tenga instalada le llega sola la próxima vez que la abra con internet.
 
-No hace falta importar ningún `.sql`: la base de datos `twt2015` y sus tablas se crean solas la primera vez que se abre la página, y empiezan vacías.
-
-## Usarla en Android (sin ordenador)
-
-Se puede usar en el móvil con [Termux](https://f-droid.org/packages/com.termux/), una terminal Linux para Android. Instálala desde F-Droid (la versión de Play Store suele dar problemas). En iPhone no es posible.
-
-**Primera vez**
-
-1. Instala PHP, MariaDB y Git:
-
-   ```
-   pkg update
-   pkg install php mariadb git
-   ```
-
-2. Arranca la base de datos (si se queda quieto, pulsa Enter):
-
-   ```
-   mariadbd-safe &
-   ```
-
-3. Crea un usuario para la app. Entra en MariaDB con `mariadb -u $(whoami)` y escribe:
-
-   ```sql
-   CREATE USER 'twt'@'localhost' IDENTIFIED BY 'twt';
-   GRANT ALL ON twt2015.* TO 'twt'@'localhost';
-   exit
-   ```
-
-4. Descarga el proyecto y pon los datos de conexión:
-
-   ```
-   git clone https://github.com/poufortnite/twt2015.git
-   cd twt2015
-   cp api/config.example.php api/config.php
-   sed -i "s/'root'/'twt'/; s/DB_PASS = ''/DB_PASS = 'twt'/" api/config.php
-   ```
-
-5. Arranca la app:
-
-   ```
-   php -S localhost:8080
-   ```
-
-6. Abre `http://localhost:8080` en el navegador del móvil, dejando Termux abierto en segundo plano.
-
-**Las siguientes veces**
-
-```
-mariadbd-safe &
-cd twt2015
-php -S localhost:8080
-```
-
-## Estructura
-
-```
-index.html        Página principal
-css/style.css     Estilos
-js/app.js         Lógica de la aplicación
-api/              Endpoints PHP (personajes, tweets, ajustes, subida de imágenes)
-api/config.example.php  Plantilla de configuración de la base de datos
-uploads/          Imágenes subidas (no se suben a Git)
-```
-
-## Empezar de cero
-
-Para borrar todo lo creado y volver a una instalación limpia:
-
-```sql
-DROP DATABASE twt2015;
-```
-
-y vacía la carpeta `uploads/` (dejando `.gitkeep`).
+Si cambias la lista de archivos de la app, añádelos también a `ARCHIVOS` en `sw.js`
+y sube el número de `CACHE` (`twt2015-v1` → `twt2015-v2`).
