@@ -6,7 +6,7 @@
    (Los personajes y tweets NO van aquí: están en IndexedDB.)
    ===================================================================== */
 
-const CACHE = 'twt2015-v7';
+const CACHE = 'twt2015-v8';
 const ARCHIVOS = [
     './',
     'index.html',
@@ -33,12 +33,14 @@ self.addEventListener('activate', e => {
     );
 });
 
-// Primero internet; si no hay, lo guardado
+// Primero internet; si no hay, lo guardado.
+// "no-cache": pregunta siempre a GitHub si hay versión nueva, en vez de fiarse
+// de la copia que el navegador guarda unos minutos (por eso antes no se actualizaba).
 self.addEventListener('fetch', e => {
     const pet = e.request;
     if (pet.method !== 'GET' || new URL(pet.url).origin !== location.origin) return;
     e.respondWith(
-        fetch(pet)
+        fetch(pet, { cache: 'no-cache' })
             .then(resp => {
                 if (resp.ok) {
                     const copia = resp.clone();

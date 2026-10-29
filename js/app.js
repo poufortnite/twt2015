@@ -1955,7 +1955,25 @@ const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 function prepararInstalacion() {
     // Guarda los archivos de la app para que abra aunque no haya internet
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+        const yaHabiaVersion = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+            // Al volver a la app (aunque estuviera en segundo plano), mira si hay versión nueva
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') reg.update().catch(() => {});
+            });
+        }).catch(() => {});
+        // Cuando llega una versión nueva, se recarga sola (cuando no estás escribiendo nada)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!yaHabiaVersion) return;   // primera instalación: no hace falta recargar
+            const recargar = () => {
+                if (hayPendientes() || !$('#modal').hidden || document.activeElement?.isContentEditable || descargandoTodos) {
+                    return setTimeout(recargar, 3000);
+                }
+                guardarTodoYa();
+                location.reload();
+            };
+            recargar();
+        });
     }
     const boton = $('#btn-instalar');
     if (yaInstalada()) return;
