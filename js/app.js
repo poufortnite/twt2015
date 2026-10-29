@@ -349,6 +349,77 @@ function botonSeguir(objetivo, enPerfil) {
 }
 
 /* ---------------------------------------------------------------------
+   QUIÉN SIGUE A QUIÉN (todo desde una ventana, sin ir perfil por perfil)
+   --------------------------------------------------------------------- */
+
+// Las relaciones van en app.relaciones['quien-aquien'] = siguiendo | seguir | pendiente (por defecto todos se siguen)
+function abrirSeguimientos(idInicial = null) {
+    if (personajes.length < 2) return aviso('Hacen falta al menos dos personajes', true);
+    let quien = pj(idInicial)?.id || mirador()?.id || personajes[0].id;
+    let sentido = 'sigue';   // 'sigue': a quién sigue · 'le-siguen': quién le sigue
+
+    // Clave de la relación según el sentido elegido
+    const clave = otroId => sentido === 'sigue' ? `${quien}-${otroId}` : `${otroId}-${quien}`;
+    const estado = otroId => app.relaciones[clave(otroId)] || 'siguiendo';
+    const poner = (otroId, valor) => { app.relaciones[clave(otroId)] = valor; };
+
+    const pintar = () => {
+        const p = pj(quien);
+        const otros = personajes.filter(x => x.id !== quien);
+        const n = otros.filter(x => estado(x.id) === 'siguiendo').length;
+        $('#modal-cuerpo').innerHTML = `
+            <p class="destino">Elige una cuenta y marca a quién sigue. Se guarda solo.</p>
+            <div class="seg-quien">${personajes.map(x => `
+                <button class="seg-cuenta ${x.id === quien ? 'sel' : ''}" data-quien="${x.id}">
+                    <span class="av" ${fondoPj(x)}></span>
+                    <span>${esc(x.nombre)}</span>
+                </button>`).join('')}
+            </div>
+            <div class="seg-sentido">
+                <button class="${sentido === 'sigue' ? 'act' : ''}" data-sentido="sigue">A quién sigue</button>
+                <button class="${sentido === 'le-siguen' ? 'act' : ''}" data-sentido="le-siguen">Quién le sigue</button>
+            </div>
+            <label>${sentido === 'sigue' ? `${esc(p.nombre)} sigue a…` : `Siguen a ${esc(p.nombre)}…`} <span class="ayuda">${n} de ${otros.length}</span></label>
+            <div class="rejilla">${otros.map(x => {
+                const e = estado(x.id);
+                return `
+                <button class="pj ${e === 'siguiendo' ? 'sel' : ''} ${e === 'pendiente' ? 'pend' : ''}" data-otro="${x.id}">
+                    <div class="av" ${fondoPj(x)}></div>
+                    <b>${nombreHTML(x)}</b>
+                    <span>${e === 'pendiente' ? 'Pendiente' : esc(x.usuario)}</span>
+                </button>`;
+            }).join('')}</div>
+            <div class="fila-btns">
+                <button class="btn btn-gris" data-todos="no">Nadie</button>
+                <button class="btn btn-gris" data-todos="si">Todos</button>
+                <button class="btn" data-accion="cerrar-modal">Listo</button>
+            </div>`;
+    };
+
+    abrirModal('Quién sigue a quién', '', () => pintarPagina());
+    pintar();
+    $('#modal-cuerpo').onclick = e => {
+        const c = e.target.closest('[data-quien]');
+        if (c) { quien = Number(c.dataset.quien); return pintar(); }
+        const s = e.target.closest('[data-sentido]');
+        if (s) { sentido = s.dataset.sentido; return pintar(); }
+        const o = e.target.closest('[data-otro]');
+        if (o) {
+            const id = Number(o.dataset.otro);
+            poner(id, estado(id) === 'siguiendo' ? 'seguir' : 'siguiendo');
+            guardarApp();
+            return pintar();
+        }
+        const t = e.target.closest('[data-todos]');
+        if (t) {
+            personajes.filter(x => x.id !== quien).forEach(x => poner(x.id, t.dataset.todos === 'si' ? 'siguiendo' : 'seguir'));
+            guardarApp();
+            return pintar();
+        }
+    };
+}
+
+/* ---------------------------------------------------------------------
    PIEZAS COMUNES
    --------------------------------------------------------------------- */
 
@@ -417,6 +488,7 @@ function vistaPerfiles() {
     <div class="inicio">
         <h1 class="titulo-pag">Perfiles</h1>
         <p class="pista no-captura">Toca un perfil para verlo. Arriba a la derecha eliges desde qué cuenta se mira todo.</p>
+        ${personajes.length > 1 ? '<button class="mini-btn btn-seg no-captura" data-accion="seguimientos">👥 Quién sigue a quién</button>' : ''}
         <div class="tarjetas">
             ${personajes.map(p => `
             <a class="tarjeta" href="#/perfil/${p.id}" style="--tema:${p.color}">
@@ -671,6 +743,7 @@ function vistaPerfil(p, pestana) {
     <div class="barra-pag no-captura">
         <a class="tb" href="#/perfiles">← Perfiles</a>
         <button class="tb" data-accion="editar-perfil" data-id="${p.id}">Editar perfil</button>
+        <button class="tb" data-accion="seguimientos" data-id="${p.id}">Seguimientos</button>
         <button class="tb" data-accion="nuevo-tweet" data-id="${p.id}">+ Tweet</button>
         <button class="tb tb-azul" data-accion="descargar">Descargar</button>
     </div>
@@ -1903,7 +1976,8 @@ const PASOS_TUTORIAL = [
         ico: '<span class="tuto-mirador"><span></span></span>',
         titulo: '2. "Viendo como"',
         texto: `<p>Arriba a la derecha eliges <b>desde qué cuenta miras</b> la app, como si tuvieras la sesión iniciada con ella.</p>
-                <p>Eso decide qué sale en ${chip('Inicio')} (los tweets de las cuentas que sigue), si en un perfil pone <b>Seguir</b> o <b>Siguiendo</b>, quién responde por defecto y quién eres tú en los mensajes.</p>`
+                <p>Eso decide qué sale en ${chip('Inicio')} (los tweets de las cuentas que sigue), si en un perfil pone <b>Seguir</b> o <b>Siguiendo</b>, quién responde por defecto y quién eres tú en los mensajes.</p>
+                <p>Al principio todos se siguen entre sí. Para cambiarlo de golpe, ve a ${chip('Perfiles')} → ${chip('👥 Quién sigue a quién')}.</p>`
     },
     {
         ico: ICONO.reply,
@@ -1951,7 +2025,8 @@ const PASOS_TUTORIAL = [
         titulo: '9. Guarda una copia',
         texto: `<p>Como todo está en este dispositivo, de vez en cuando ve a ${chip('Perfiles')} → <b>Tus datos</b> → ${chip('⬇ Guardar copia')}.</p>
                 <p>Ese archivo te sirve si cambias de móvil o se borra el navegador: lo cargas con ${chip('⬆ Cargar copia')}.</p>
-                <p>Y si quieres volver a ver esta guía, toca el <span class="chip chip-redondo">?</span> de arriba.</p>`
+                <p>Y si quieres volver a ver esta guía, toca el <span class="chip chip-redondo">?</span> de arriba.</p>
+                <p class="gris">twt2015 está hecha por <a class="enlace" href="https://github.com/poufortnite" target="_blank" rel="noopener">@poufortnite</a>.</p>`
     }
 ];
 
@@ -2088,6 +2163,7 @@ document.addEventListener('click', async e => {
         case 'importar': return importarCopia();
         case 'instalar': return instalarApp();
         case 'tutorial': return abrirTutorial();
+        case 'seguimientos': return abrirSeguimientos(Number(el.dataset.id) || null);
 
         case 'ir-perfil':
             e.stopPropagation();

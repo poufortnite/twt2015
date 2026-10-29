@@ -553,3 +553,20 @@ html.capturando .dm-grupo-nom.ed:empty::before { content: attr(data-ph); }
 .dm-auto { white-space: nowrap; }
 .dm-auto.act { background: #e8f5fd; border-color: var(--azul); color: var(--azul); font-weight: bold; }
 .dm-escribir-fila input:disabled { background: var(--fondo); }
+
+/* ---------- Quién sigue a quién ---------- */
+.btn-seg { margin: -4px 4px 14px; font-weight: bold; }
+.seg-quien { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px; }
+.seg-cuenta { flex: 0 0 72px; border: 2px solid transparent; background: var(--fondo); border-radius: 8px; padding: 6px 4px; text-align: center; min-width: 0; }
+.seg-cuenta .av { display: block; width: 40px; height: 40px; margin: 0 auto 4px; }
+.seg-cuenta span:last-child { display: block; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg-cuenta.sel { border-color: var(--azul); background: #e8f5fd; font-weight: bold; }
+.seg-sentido { display: flex; border: 1px solid var(--borde); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+.seg-sentido button { flex: 1; border: none; background: #fff; padding: 8px; font-size: 13px; font-weight: bold; color: var(--gris-osc); }
+.seg-sentido button.act { background: var(--azul); color: #fff; }
+.pj.pend { border-color: #ccd6dd; border-style: dashed; }
+.pj.pend span { color: var(--gris-osc); font-weight: bold; }
+
+/* ---------- Pie con el autor (no sale en las capturas: está fuera de lo que se descarga) ---------- */
+.pie { text-align: center; font-size: 12px; color: var(--gris); padding: 0 12px calc(20px + env(safe-area-inset-bottom)); margin-top: -30px; }
+.pie a { color: var(--azul); font-weight: bold; }
