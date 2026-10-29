@@ -31,6 +31,58 @@ Hecho con HTML, CSS y JavaScript en el navegador, y PHP + MariaDB/MySQL en el se
 
 No hace falta importar ningún `.sql`: la base de datos `twt2015` y sus tablas se crean solas la primera vez que se abre la página, y empiezan vacías.
 
+## Usarla en Android (sin ordenador)
+
+Se puede usar en el móvil con [Termux](https://f-droid.org/packages/com.termux/), una terminal Linux para Android. Instálala desde F-Droid (la versión de Play Store suele dar problemas). En iPhone no es posible.
+
+**Primera vez**
+
+1. Instala PHP, MariaDB y Git:
+
+   ```
+   pkg update
+   pkg install php mariadb git
+   ```
+
+2. Arranca la base de datos (si se queda quieto, pulsa Enter):
+
+   ```
+   mariadbd-safe &
+   ```
+
+3. Crea un usuario para la app. Entra en MariaDB con `mariadb -u $(whoami)` y escribe:
+
+   ```sql
+   CREATE USER 'twt'@'localhost' IDENTIFIED BY 'twt';
+   GRANT ALL ON twt2015.* TO 'twt'@'localhost';
+   exit
+   ```
+
+4. Descarga el proyecto y pon los datos de conexión:
+
+   ```
+   git clone https://github.com/poufortnite/twt2015.git
+   cd twt2015
+   cp api/config.example.php api/config.php
+   sed -i "s/'root'/'twt'/; s/DB_PASS = ''/DB_PASS = 'twt'/" api/config.php
+   ```
+
+5. Arranca la app:
+
+   ```
+   php -S localhost:8080
+   ```
+
+6. Abre `http://localhost:8080` en el navegador del móvil, dejando Termux abierto en segundo plano.
+
+**Las siguientes veces**
+
+```
+mariadbd-safe &
+cd twt2015
+php -S localhost:8080
+```
+
 ## Estructura
 
 ```
