@@ -1975,40 +1975,86 @@ function prepararInstalacion() {
             recargar();
         });
     }
+    // El botón "Instalar" está siempre (menos dentro de la app ya instalada)
     const boton = $('#btn-instalar');
     if (yaInstalada()) return;
-    if (esIOS()) boton.hidden = false;   // en iPhone no hay ventana automática: se explica cómo
+    boton.hidden = false;
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
-        avisoInstalar = e;
-        boton.hidden = false;
+        avisoInstalar = e;   // Chrome/Edge dejan instalarla con un botón
+        if (!$('#modal').hidden && $('.inst')) pintarInstalacion();
     });
     window.addEventListener('appinstalled', () => {
         boton.hidden = true;
         avisoInstalar = null;
+        if (!$('#modal').hidden && $('.inst')) cerrarModal();
         aviso('¡App instalada!');
     });
 }
 
-async function instalarApp() {
-    if (avisoInstalar) {
-        avisoInstalar.prompt();
-        await avisoInstalar.userChoice;
-        avisoInstalar = null;
-        $('#btn-instalar').hidden = true;
-        return;
-    }
-    abrirModal('Instalar la app', esIOS() ? `
+const esAndroid = () => /android/i.test(navigator.userAgent);
+// En el iPhone solo Safari tiene "Añadir a pantalla de inicio" seguro
+const esSafariIOS = () => esIOS() && !/crios|fxios|edgios|opios|gsa\//i.test(navigator.userAgent);
+
+let sistemaInstalar = null;   // 'android' | 'ios' | 'pc'
+
+const ICONO_COMPARTIR_IOS = '<svg class="ico-paso" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16"/><path d="M12 3v11M8.5 6.5 12 3l3.5 3.5"/></g></svg>';
+
+function pasosInstalacion(sistema) {
+    const boton = avisoInstalar && sistema !== 'ios'
+        ? `<button class="btn btn-ancho inst-ya" data-inst="ahora">Instalar ahora</button>
+           <p class="gris inst-o">o, si prefieres hacerlo a mano:</p>` : '';
+    if (sistema === 'android') return `${boton}
         <ol class="pasos">
-            <li>Ábrela en <b>Safari</b> (en otros navegadores del iPhone puede no salir).</li>
-            <li>Toca el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba).</li>
-            <li>Elige <b>Añadir a pantalla de inicio</b> y luego <b>Añadir</b>.</li>
+            <li>Abre <b>poufortnite.github.io/twt2015</b> en <b>Chrome</b>.</li>
+            <li>Toca el menú de los tres puntos <b>⋮</b> (arriba a la derecha).</li>
+            <li>Toca <b>Instalar app</b> o <b>Añadir a pantalla de inicio</b>, y luego <b>Instalar</b>.</li>
         </ol>
-        <p class="gris">Te saldrá el icono en el móvil como cualquier otra app.</p>` : `
+        <p class="gris">Te sale el icono en el móvil como cualquier otra app, y funciona también sin internet.</p>`;
+    if (sistema === 'ios') return `
+        ${esIOS() && !esSafariIOS() ? '<p class="inst-ojo">Ahora no estás en Safari. Copia el enlace y ábrelo en <b>Safari</b>: en otros navegadores del iPhone puede no salir la opción.</p>' : ''}
         <ol class="pasos">
-            <li>Abre el menú del navegador (los tres puntos ⋮).</li>
-            <li>Toca <b>Instalar app</b> o <b>Añadir a pantalla de inicio</b>.</li>
-        </ol>`);
+            <li>Abre <b>poufortnite.github.io/twt2015</b> en <b>Safari</b>.</li>
+            <li>Toca el botón <b>Compartir</b> ${ICONO_COMPARTIR_IOS} (el cuadrado con la flecha hacia arriba, abajo en el centro).</li>
+            <li>Baja y toca <b>Añadir a pantalla de inicio</b>.</li>
+            <li>Toca <b>Añadir</b>, arriba a la derecha.</li>
+        </ol>
+        <p class="inst-ojo">En el iPhone, la app instalada y Safari guardan los datos por separado. Instálala <b>antes</b> de crear nada, o pásate lo de Safari con <b>Guardar copia</b> / <b>Cargar copia</b>.</p>`;
+    return `${boton}
+        <ol class="pasos">
+            <li>Ábrela en <b>Chrome</b> o <b>Edge</b>.</li>
+            <li>Toca el iconito de instalar a la derecha de la barra de direcciones (una pantalla con una flecha), o abre el menú <b>⋮</b> → <b>Instalar twt2015</b> (en Chrome puede estar en <b>Enviar, guardar y compartir</b>).</li>
+            <li>Confirma con <b>Instalar</b>.</li>
+        </ol>`;
+}
+
+function pintarInstalacion() {
+    const opcion = (clave, texto) => `<button class="${sistemaInstalar === clave ? 'act' : ''}" data-sistema="${clave}">${texto}</button>`;
+    $('#modal-cuerpo').innerHTML = `
+        <div class="inst">
+            <p class="destino">¿Dónde la quieres instalar?</p>
+            <div class="seg-sentido inst-sistemas">
+                ${opcion('android', 'Android')}${opcion('ios', 'iPhone')}${opcion('pc', 'Ordenador')}
+            </div>
+            <div class="inst-pasos">${pasosInstalacion(sistemaInstalar)}</div>
+        </div>`;
+}
+
+function instalarApp() {
+    if (!sistemaInstalar) sistemaInstalar = esIOS() ? 'ios' : esAndroid() ? 'android' : 'pc';
+    abrirModal('Instalar la app', '');
+    pintarInstalacion();
+    $('#modal-cuerpo').onclick = async e => {
+        const s = e.target.closest('[data-sistema]');
+        if (s) { sistemaInstalar = s.dataset.sistema; return pintarInstalacion(); }
+        if (e.target.closest('[data-inst="ahora"]') && avisoInstalar) {
+            avisoInstalar.prompt();
+            const { outcome } = await avisoInstalar.userChoice;
+            avisoInstalar = null;
+            if (outcome === 'accepted') cerrarModal();
+            else pintarInstalacion();
+        }
+    };
 }
 
 /* ---------------------------------------------------------------------
@@ -2084,6 +2130,7 @@ const PASOS_TUTORIAL = [
         titulo: '9. Guarda una copia',
         texto: `<p>Como todo está en este dispositivo, de vez en cuando ve a ${chip('Perfiles')} → <b>Tus datos</b> → ${chip('⬇ Guardar copia')}.</p>
                 <p>Ese archivo te sirve si cambias de móvil o se borra el navegador: lo cargas con ${chip('⬆ Cargar copia')}.</p>
+                <p>Para tenerla como una app más en el móvil, toca ${chip('Instalar')} arriba y elige Android o iPhone.</p>
                 <p>Y si quieres volver a ver esta guía, toca el <span class="chip chip-redondo">?</span> de arriba.</p>
                 <p class="gris">twt2015 está hecha por <a class="enlace" href="https://github.com/poufortnite" target="_blank" rel="noopener">@poufortnite</a>.</p>`
     }

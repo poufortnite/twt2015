@@ -6,7 +6,7 @@
    (Los personajes y tweets NO van aquí: están en IndexedDB.)
    ===================================================================== */
 
-const CACHE = 'twt2015-v8';
+const CACHE = 'twt2015-v9';
 const ARCHIVOS = [
     './',
     'index.html',

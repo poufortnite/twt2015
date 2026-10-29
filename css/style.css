@@ -587,3 +587,11 @@ html.capturando .dm-grupo-nom.ed:empty::before { content: attr(data-ph); }
 .dm-chat { overflow: visible; }
 .dm-pie { border-radius: 0 0 6px 6px; }
 .tb:disabled { opacity: .45; cursor: default; }
+
+/* ---------- Instalar la app ---------- */
+.inst-sistemas { margin: 0 0 14px; }
+.inst-pasos .pasos li { margin-bottom: 4px; }
+.inst-ya { margin-top: 0; }
+.inst-o { text-align: center; margin: 10px 0 8px; font-size: 13px; }
+.ico-paso { width: 18px; height: 18px; vertical-align: -3px; color: var(--azul); }
+.inst-ojo { background: #fff8e8; border: 1px solid #ffe2a8; border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; margin: 0 0 12px; }

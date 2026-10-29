@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#55acee"/>
-  <path d="M152 150h208a44 44 0 0 1 44 44v104a44 44 0 0 1-44 44H250l-62 50v-50h-36a44 44 0 0 1-44-44V194a44 44 0 0 1 44-44z" fill="#fff"/>
-  <text x="256" y="283" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="112" fill="#55acee" letter-spacing="-4">15</text>
+  <text x="256" y="272" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="700" font-size="176" fill="#fff" letter-spacing="-8" opacity="1">twt</text><text x="256" y="372" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="700" font-size="84" fill="#fff" letter-spacing="6" opacity="0.85">2015</text>
 </svg>
