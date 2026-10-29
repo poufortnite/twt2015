@@ -995,7 +995,8 @@ function vistaChat(c) {
         <a class="tb" href="#/mensajes">← Mensajes</a>
         <button class="tb" data-accion="chat-personas">Personas</button>
         <button class="tb" data-accion="chat-yo">Ver como…</button>
-        <button class="tb tb-rojo" data-accion="borrar-chat">Borrar</button>
+        <button class="tb tb-rojo" data-accion="chat-vaciar" ${c.mensajes.length ? '' : 'disabled'} title="Borra los mensajes, pero deja el chat">Vaciar</button>
+        <button class="tb tb-rojo" data-accion="borrar-chat">Borrar chat</button>
         <button class="tb tb-azul" data-accion="descargar">Descargar</button>
     </div>
     <p class="pista no-captura">Tus mensajes (los de ${esc(yo?.usuario || '')}) salen a la derecha, en color. Toca un mensaje para cambiar el texto; con ⋯ le pones hora o foto, lo mueves o lo borras.${uno ? '' : ' Toca el título para ponerle nombre al grupo.'}</p>
@@ -1648,6 +1649,15 @@ async function accionChat(accion, el, c) {
         }
         case 'chat-enviar':
             return enviarMensaje(c);
+        case 'chat-vaciar': {
+            const n = c.mensajes.length;
+            if (!n) return;
+            if (!confirm(`¿Borrar ${n === 1 ? 'el mensaje' : `los ${n} mensajes`} de este chat?\n\nEl chat se queda, con su gente y su nombre.`)) return;
+            c.mensajes = [];
+            guardarChat(c);
+            pintarPagina();
+            return aviso('Chat vaciado');
+        }
         case 'chat-hora-auto': {
             app.horaAuto = !horaAuto();
             guardarApp();

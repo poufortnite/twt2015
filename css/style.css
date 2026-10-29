@@ -586,3 +586,4 @@ html.capturando .dm-grupo-nom.ed:empty::before { content: attr(data-ph); }
 /* Para que el desplegable no se corte en chats con pocos mensajes */
 .dm-chat { overflow: visible; }
 .dm-pie { border-radius: 0 0 6px 6px; }
+.tb:disabled { opacity: .45; cursor: default; }
